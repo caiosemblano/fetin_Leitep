@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "121736151982",
+    "firebase_url": "https://fetin-eq103-default-rtdb.firebaseio.com",
+    "project_id": "fetin-eq103",
+    "storage_bucket": "fetin-eq103.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:121736151982:android:00813251a651f7ff66fe3f",
+        "android_client_info": {
+          "package_name": "com.example.fetin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBKoxFoWDkXuY__KGrI3hQoFlzHnnPNQbY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
