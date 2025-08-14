@@ -20,48 +20,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final AuthService _auth = AuthService();
   final DatabaseService _db = DatabaseService();
   final nomeController = TextEditingController();
-  final cpfController = TextEditingController();
   final emailController = TextEditingController();
   final senhaController = TextEditingController();
   String error = '';
 
-  // Máscara para CPF (movida para dentro da classe)
-  final cpfFormatter = MaskTextInputFormatter(
-    mask: '###.###.###-##',
-    filter: {"#": RegExp(r'[0-9]')},
-    type: MaskAutoCompletionType.lazy,
-  );
 
-  // Função de validação de CPF (movida para dentro da classe)
-  bool isValidCPF(String cpf) {
-    cpf = cpf.replaceAll(RegExp(r'[^0-9]'), '');
-    if (cpf.length != 11) return false;
-    if (RegExp(r'^(\d)\1*$').hasMatch(cpf)) return false;
-
-    List<int> numbers = cpf.split('').map(int.parse).toList();
-
-    int sum = 0;
-    for (int i = 0; i < 9; i++) {
-      sum += numbers[i] * (10 - i);
-    }
-    int firstDigit = (sum * 10) % 11;
-    if (firstDigit == 10) firstDigit = 0;
-    if (numbers[9] != firstDigit) return false;
-
-    sum = 0;
-    for (int i = 0; i < 10; i++) {
-      sum += numbers[i] * (11 - i);
-    }
-    int secondDigit = (sum * 10) % 11;
-    if (secondDigit == 10) secondDigit = 0;
-
-    return numbers[10] == secondDigit;
-  }
 
   @override
   void dispose() {
     nomeController.dispose();
-    cpfController.dispose();
     emailController.dispose();
     senhaController.dispose();
     super.dispose();
@@ -69,17 +36,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> registrar() async {
     final nome = nomeController.text.trim();
-    final cpf = cpfController.text.trim().replaceAll(RegExp(r'[^0-9]'), '');
     final email = emailController.text.trim();
     final senha = senhaController.text.trim();
 
-    if (nome.isEmpty || cpf.isEmpty || email.isEmpty || senha.isEmpty) {
+    if (nome.isEmpty || email.isEmpty || senha.isEmpty) {
       setState(() => error = 'Preencha todos os campos');
-      return;
-    }
-
-    if (!isValidCPF(cpf)) {
-      setState(() => error = 'CPF inválido');
       return;
     }
 
@@ -88,7 +49,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (user != null) {
         await _db.saveUserData(user.uid, {
           'nome': nome,
-          'cpf': cpf,
           'email': email,
           'createdAt': ServerValue.timestamp,
         });
@@ -131,13 +91,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 controller: nomeController,
               ),
               const SizedBox(height: 24),
-
-              AuthTextField(
-                hintText: 'CPF',
-                controller: cpfController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [cpfFormatter],
-              ),
               const SizedBox(height: 24),
 
               AuthTextField(
