@@ -33,8 +33,6 @@ class AuthTextField extends StatelessWidget {
           horizontal: 16,
           vertical: 14,
         ),
-        // Remove o ícone de visibilidade padrão do Flutter
-        suffixIcon: null, // ✅ Mudança crítica aqui
       ),
     );
   }
