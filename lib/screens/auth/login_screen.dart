@@ -5,7 +5,7 @@ import 'package:fetin/widgets/auth/auth_header.dart'; // Adicionado
 import 'package:fetin/widgets/auth/auth_text_field.dart'; // Adicionado
 import 'package:fetin/widgets/auth/auth_button.dart'; // Adicionado
 import 'package:fetin/screens/auth/register_screen.dart'; // Adicionado
-import 'package:fetin/screens/home/home_screen.dart';
+import 'package:fetin/screens/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -41,7 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // Login bem-sucedido
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const MyHomePage(title: 'Fetin Home')),
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
       );
     } else {
       setState(() => error = 'Falha no login. Verifique suas credenciais.');
