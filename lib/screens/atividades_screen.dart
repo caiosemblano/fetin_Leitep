@@ -61,7 +61,7 @@ class _AtividadesScreenState extends State<AtividadesScreen> {
             eventLoader: repo.getAtividadesDoDia,
             calendarStyle: CalendarStyle(
               todayDecoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.3),
+                color: Color.fromRGBO(33, 150, 243, 0.3),
                 shape: BoxShape.circle,
               ),
               selectedDecoration: const BoxDecoration(

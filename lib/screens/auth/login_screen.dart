@@ -37,6 +37,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     User? user = await _auth.signIn(email, password);
+    if (!mounted) return;
     if (user != null) {
       // Login bem-sucedido
       Navigator.pushReplacement(

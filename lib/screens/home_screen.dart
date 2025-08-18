@@ -28,30 +28,35 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
         if (_selectedIndex != 0) {
           setState(() => _selectedIndex = 0);
-          return false;
+          return;
         }
-        final shouldExit = await showDialog(
+        final navigator = Navigator.of(context, rootNavigator: true);
+        final shouldExit = await showDialog<bool>(
           context: context,
-          builder: (context) => AlertDialog(
+          builder: (dialogContext) => AlertDialog(
             title: const Text('Sair do aplicativo'),
             content: const Text('Deseja realmente sair?'),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
+                onPressed: () => Navigator.of(dialogContext).pop(false),
                 child: const Text('Cancelar'),
               ),
               TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
+                onPressed: () => Navigator.of(dialogContext).pop(true),
                 child: const Text('Sair'),
               ),
             ],
           ),
         );
-        return shouldExit ?? false;
+        if (shouldExit == true) {
+          navigator.maybePop();
+        }
       },
       child: Scaffold(
         appBar: AppBar(
@@ -66,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
           decoration: BoxDecoration(
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Color.fromRGBO(0, 0, 0, 0.1),
                 blurRadius: 10,
                 spreadRadius: 2,
               ),

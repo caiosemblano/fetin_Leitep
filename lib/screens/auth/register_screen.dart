@@ -55,7 +55,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'email': email,
           'createdAt': ServerValue.timestamp,
         });
-
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Cadastro realizado com sucesso!')),
         );

@@ -38,7 +38,7 @@ class MyApp extends StatelessWidget {
           primary: Colors.blue[800], // Cor primária mais escura
           secondary: Colors.blue[600],
           surface: Colors.white,
-          background: Colors.white,
+          // background: Colors.white, // Removido por ser deprecated
           ),
           bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: Colors.white,
