@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart'; // Adicionado para ServerValue
-import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:fetin/services/auth_service.dart';
 import 'package:fetin/services/database_service.dart';
 import 'package:fetin/widgets/auth/auth_header.dart';
@@ -43,6 +42,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => error = 'Preencha todos os campos');
       return;
     }
+    if (senha.length < 6) {
+      setState(() => error = 'A senha deve ter no mínimo 6 caracteres');
+      return;
+    }
 
     try {
       User? user = await _auth.signUp(email, senha);
@@ -60,7 +63,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
           context,
           MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
+      } else {
+        setState(() => error = 'Erro desconhecido ao cadastrar.');
       }
+    } on FirebaseAuthException catch (e) {
+      String msg = 'Erro ao cadastrar';
+      if (e.code == 'email-already-in-use') {
+        msg = 'Este e-mail já está em uso.';
+      } else if (e.code == 'invalid-email') {
+        msg = 'E-mail inválido.';
+      } else if (e.code == 'weak-password') {
+        msg = 'A senha deve ter no mínimo 6 caracteres.';
+      }
+      setState(() => error = msg);
     } catch (e) {
       setState(() => error = 'Erro ao cadastrar: ${e.toString()}');
     }

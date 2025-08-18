@@ -19,15 +19,10 @@ class AuthService {
 
   // Cadastro com email/senha
   Future<User?> signUp(String email, String password) async {
-    try {
-      UserCredential result = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      return result.user;
-    } catch (e) {
-      print("Erro no cadastro: $e");
-      return null;
-    }
+    UserCredential result = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    return result.user;
   }
 }
