@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class VacasScreen extends StatefulWidget {
   const VacasScreen({super.key});
@@ -8,32 +9,7 @@ class VacasScreen extends StatefulWidget {
 }
 
 class _VacasScreenState extends State<VacasScreen> {
-  final List<Map<String, dynamic>> _vacas = [
-    {
-      'id': '1',
-      'nome': 'Mimosa',
-      'raca': 'Holandesa',
-      'idade': '5',
-      'peso': '550',
-      'lactacao': true
-    },
-    {
-      'id': '2',
-      'nome': 'Estrela',
-      'raca': 'Jersey',
-      'idade': '4',
-      'peso': '450',
-      'lactacao': true
-    },
-    {
-      'id': '3',
-      'nome': 'Flor',
-      'raca': 'Gir',
-      'idade': '6',
-      'peso': '600',
-      'lactacao': false
-    },
-  ];
+  final List<Map<String, dynamic>> _vacas = [];
 
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _nomeController = TextEditingController();
@@ -49,8 +25,8 @@ class _VacasScreenState extends State<VacasScreen> {
   @override
   void initState() {
     super.initState();
-    _filteredVacas = _vacas;
     _searchController.addListener(_filterVacas);
+    _loadVacas();
   }
 
   @override
@@ -67,7 +43,8 @@ class _VacasScreenState extends State<VacasScreen> {
     final query = _searchController.text.toLowerCase();
     setState(() {
       _filteredVacas = _vacas.where((vaca) {
-        final matchesSearch = vaca['nome'].toLowerCase().contains(query) ||
+        final matchesSearch =
+            vaca['nome'].toLowerCase().contains(query) ||
             vaca['raca'].toLowerCase().contains(query);
         final matchesFilter =
             _selectedFilter == 'Todas' || vaca['raca'] == _selectedFilter;
@@ -81,9 +58,7 @@ class _VacasScreenState extends State<VacasScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Gerenciamento de Vacas'),
-      ),
+      appBar: AppBar(title: const Text('Gerenciamento de Vacas')),
       body: Column(
         children: [
           Padding(
@@ -135,10 +110,9 @@ class _VacasScreenState extends State<VacasScreen> {
             child: DropdownButtonFormField<String>(
               value: _selectedFilter,
               items: ['Todas', 'Holandesa', 'Jersey', 'Gir']
-                  .map((raca) => DropdownMenuItem(
-                        value: raca,
-                        child: Text(raca),
-                      ))
+                  .map(
+                    (raca) => DropdownMenuItem(value: raca, child: Text(raca)),
+                  )
                   .toList(),
               onChanged: (value) {
                 setState(() {
@@ -181,8 +155,7 @@ class _VacasScreenState extends State<VacasScreen> {
             Text('Idade: ${vaca['idade']} anos'),
             Text('Peso: ${vaca['peso']} kg'),
             if (vaca['lactacao'])
-              const Text('Em lactação',
-                  style: TextStyle(color: Colors.green)),
+              const Text('Em lactação', style: TextStyle(color: Colors.green)),
           ],
         ),
         trailing: Row(
@@ -307,15 +280,14 @@ class _VacasScreenState extends State<VacasScreen> {
         _pesoController.text.isNotEmpty;
   }
 
-  void _saveVaca({
+  Future<void> _saveVaca({
     required String nome,
     required String raca,
     required String idade,
     required String peso,
     required bool lactacao,
-  }) {
-    final newVaca = {
-      'id': _editingId ?? DateTime.now().millisecondsSinceEpoch.toString(),
+  }) async {
+    final vacaData = {
       'nome': nome,
       'raca': raca,
       'idade': idade,
@@ -323,12 +295,28 @@ class _VacasScreenState extends State<VacasScreen> {
       'lactacao': lactacao,
     };
 
+    if (_editingId != null) {
+      // Atualiza vaca existente
+      await FirebaseFirestore.instance
+          .collection('vacas')
+          .doc(_editingId)
+          .set(vacaData);
+    } else {
+      // Adiciona nova vaca
+      await FirebaseFirestore.instance.collection('vacas').add(vacaData);
+    }
+
+    await _loadVacas();
+    _filterVacas();
+  }
+
+  Future<void> _loadVacas() async {
+    final snapshot = await FirebaseFirestore.instance.collection('vacas').get();
     setState(() {
-      if (_editingId != null) {
-        final index = _vacas.indexWhere((v) => v['id'] == _editingId);
-        if (index != -1) _vacas[index] = newVaca;
-      } else {
-        _vacas.add(newVaca);
+      _vacas.clear();
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        _vacas.add({'id': doc.id, ...data});
       }
       _filterVacas();
     });
@@ -346,11 +334,12 @@ class _VacasScreenState extends State<VacasScreen> {
             child: const Text('Cancelar'),
           ),
           TextButton(
-            onPressed: () {
-              setState(() {
-                _vacas.removeWhere((v) => v['id'] == vaca['id']);
-                _filterVacas();
-              });
+            onPressed: () async {
+              await FirebaseFirestore.instance
+                  .collection('vacas')
+                  .doc(vaca['id'])
+                  .delete();
+              await _loadVacas();
               Navigator.pop(context);
             },
             child: const Text('Remover', style: TextStyle(color: Colors.red)),

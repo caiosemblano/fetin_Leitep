@@ -1,9 +1,13 @@
-import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DatabaseService {
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
+  final CollectionReference _usersCollection = FirebaseFirestore.instance
+      .collection('usuarios');
 
-  Future<void> saveUserData(String userId, Map<String, dynamic> userData) async {
-    await _dbRef.child('users').child(userId).set(userData);
+  Future<void> saveUserData(
+    String userId,
+    Map<String, dynamic> userData,
+  ) async {
+    await _usersCollection.doc(userId).set(userData);
   }
 }

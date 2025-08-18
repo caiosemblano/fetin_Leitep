@@ -1,7 +1,9 @@
 import 'package:fetin/screens/atividades_screen.dart';
 import 'package:flutter/material.dart';
+
 import 'package:provider/provider.dart';
 import 'atividades_repository.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RegistroProducaoScreen extends StatefulWidget {
   const RegistroProducaoScreen({super.key});
@@ -11,6 +13,22 @@ class RegistroProducaoScreen extends StatefulWidget {
 }
 
 class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> {
+  Future<void> salvarRegistroProducao({
+    required String vacaId,
+    required double quantidade,
+    required DateTime dataHora,
+  }) async {
+    try {
+      await FirebaseFirestore.instance.collection('registros_producao').add({
+        'vacaId': vacaId,
+        'quantidade': quantidade,
+        'dataHora': dataHora,
+      });
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   final _formKey = GlobalKey<FormState>();
   final _quantidadeController = TextEditingController();
   final _vacaController = TextEditingController();
@@ -30,9 +48,7 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Registro de Produção'),
-      ),
+      appBar: AppBar(title: const Text('Registro de Produção')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -42,10 +58,10 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> {
               DropdownButtonFormField<String>(
                 value: _selectedTipo,
                 items: ['Leite', 'Saúde', 'Ciclo']
-                    .map((tipo) => DropdownMenuItem(
-                          value: tipo,
-                          child: Text(tipo),
-                        ))
+                    .map(
+                      (tipo) =>
+                          DropdownMenuItem(value: tipo, child: Text(tipo)),
+                    )
                     .toList(),
                 onChanged: (value) {
                   setState(() {
@@ -92,8 +108,8 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> {
                   controller: _observacaoController,
                   maxLines: 3,
                   decoration: InputDecoration(
-                    labelText: _selectedTipo == 'Saúde' 
-                        ? 'Observações de Saúde' 
+                    labelText: _selectedTipo == 'Saúde'
+                        ? 'Observações de Saúde'
                         : 'Detalhes do Ciclo',
                     border: const OutlineInputBorder(),
                   ),
@@ -107,13 +123,17 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> {
               const SizedBox(height: 16),
               ListTile(
                 title: const Text('Data'),
-                subtitle: Text('${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}'),
+                subtitle: Text(
+                  '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
+                ),
                 trailing: const Icon(Icons.calendar_today),
                 onTap: () async {
                   final date = await showDatePicker(
                     context: context,
                     initialDate: _selectedDate,
-                    firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                    firstDate: DateTime.now().subtract(
+                      const Duration(days: 365),
+                    ),
                     lastDate: DateTime.now().add(const Duration(days: 365)),
                   );
                   if (date != null) {
@@ -141,25 +161,74 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   if (_formKey.currentState!.validate()) {
-                    final repo = Provider.of<AtividadesRepository>(context, listen: false);
-                    final atividade = Activity(
-                      name: _selectedTipo == 'Leite'
-                          ? 'Produção: ${_vacaController.text} - ${_quantidadeController.text}L'
-                          : _selectedTipo == 'Saúde'
+                    if (_selectedTipo == 'Leite') {
+                      try {
+                        final quantidade = double.tryParse(
+                          _quantidadeController.text,
+                        );
+                        if (quantidade == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Quantidade inválida!'),
+                            ),
+                          );
+                          return;
+                        }
+                        await salvarRegistroProducao(
+                          vacaId: _vacaController.text,
+                          quantidade: quantidade,
+                          dataHora: DateTime(
+                            _selectedDate.year,
+                            _selectedDate.month,
+                            _selectedDate.day,
+                            _selectedTime.hour,
+                            _selectedTime.minute,
+                          ),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Registro salvo com sucesso!'),
+                          ),
+                        );
+                        Navigator.pop(context);
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Erro ao salvar registro: $e'),
+                          ),
+                        );
+                      }
+                    } else {
+                      try {
+                        // Mantém o comportamento anterior para Saúde/Ciclo
+                        final repo = Provider.of<AtividadesRepository>(
+                          context,
+                          listen: false,
+                        );
+                        final atividade = Activity(
+                          name: _selectedTipo == 'Saúde'
                               ? 'Saúde: ${_vacaController.text} - ${_observacaoController.text}'
                               : 'Ciclo: ${_vacaController.text} - ${_observacaoController.text}',
-                      time: _selectedTime,
-                      category: _selectedTipo,
-                    );
-                    repo.addAtividade(_selectedDate, atividade);
-                    
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Registro salvo com sucesso!')),
-                    );
-                    
-                    Navigator.pop(context);
+                          time: _selectedTime,
+                          category: _selectedTipo,
+                        );
+                        repo.addAtividade(_selectedDate, atividade);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Registro salvo com sucesso!'),
+                          ),
+                        );
+                        Navigator.pop(context);
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Erro ao salvar registro: $e'),
+                          ),
+                        );
+                      }
+                    }
                   }
                 },
                 style: ElevatedButton.styleFrom(
