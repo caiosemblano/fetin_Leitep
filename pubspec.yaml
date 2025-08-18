@@ -21,6 +21,13 @@ dependencies:
 
   table_calendar: ^3.2.0
   syncfusion_flutter_charts: ^30.2.5
+  
+  # Novas dependências
+  shared_preferences: ^2.2.2
+  pdf: ^3.10.4
+  path_provider: ^2.1.1
+  permission_handler: ^11.0.1
+  flutter_local_notifications: ^17.0.0
 
   
 dev_dependencies:

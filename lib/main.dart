@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart'; // Certifique-se que este arquivo foi gerado// Arquivo gerado automaticamente
 import 'package:provider/provider.dart';
 import 'screens/atividades_repository.dart';
+import 'services/notification_service.dart';
 
 
 void main() async {
@@ -12,6 +13,11 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  
+  // Inicializar notificações
+  await NotificationService.initialize();
+  await NotificationService.requestPermissions();
+  
   runApp(
     MultiProvider(
       providers: [

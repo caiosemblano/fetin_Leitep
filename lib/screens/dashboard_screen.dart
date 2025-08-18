@@ -4,6 +4,10 @@ import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'atividades_repository.dart';
 import 'package:fetin/screens/auth/login_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/notification_service.dart';
+import 'notificacoes_screen.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -14,6 +18,283 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   String _selectedChart = 'Produção';
+  
+  // Dados do Firebase
+  int _totalVacas = 0;
+  int _vacasLactacao = 0;
+  double _mediaProducaoDiaria = 0.0;
+  List<ChartData> _producaoSemanal = [];
+  List<ChartData> _saudeData = [];
+  List<ChartData> _cicloData = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      await Future.wait([
+        _loadVacasData(),
+        _loadProducaoData(),
+        _loadSaudeData(),
+        _loadCicloData(),
+      ]);
+      
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Erro ao carregar dados da dashboard: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadVacasData() async {
+    final snapshot = await FirebaseFirestore.instance.collection('vacas').get();
+    final totalVacas = snapshot.docs.length;
+    
+    // Contar vacas em lactação (assumindo que têm um campo 'lactacao')
+    int vacasLactacao = 0;
+    for (var doc in snapshot.docs) {
+      final data = doc.data();
+      if (data['lactacao'] == true || data['status'] == 'lactacao') {
+        vacasLactacao++;
+      }
+    }
+    
+    setState(() {
+      _totalVacas = totalVacas;
+      _vacasLactacao = vacasLactacao;
+    });
+  }
+
+  Future<void> _loadProducaoData() async {
+    final now = DateTime.now();
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+    
+    // Primeiro, buscar IDs das vacas ativas
+    final vacasSnapshot = await FirebaseFirestore.instance
+        .collection('vacas')
+        .get();
+    
+    final vacasAtivas = vacasSnapshot.docs.map((doc) => doc.id).toSet();
+    
+    final snapshot = await FirebaseFirestore.instance
+        .collection('registros_producao')
+        .where('dataHora', isGreaterThan: Timestamp.fromDate(sevenDaysAgo))
+        .get();
+    
+    // Agrupar por dia da semana
+    Map<String, double> producaoPorDia = {
+      'Seg': 0.0,
+      'Ter': 0.0,
+      'Qua': 0.0,
+      'Qui': 0.0,
+      'Sex': 0.0,
+      'Sáb': 0.0,
+      'Dom': 0.0,
+    };
+    
+    List<String> diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    double totalProducao = 0.0;
+    int totalRegistros = 0;
+    
+    for (var doc in snapshot.docs) {
+      final data = doc.data();
+      final vacaId = data['vacaId'] as String;
+      
+      // ✅ FILTRO: Só processar se a vaca ainda existir
+      if (!vacasAtivas.contains(vacaId)) {
+        continue; // Pular registros de vacas excluídas
+      }
+      
+      final dataHora = (data['dataHora'] as Timestamp).toDate();
+      final quantidade = (data['quantidade'] as num).toDouble();
+      
+      final diaSemana = diasSemana[dataHora.weekday % 7];
+      producaoPorDia[diaSemana] = producaoPorDia[diaSemana]! + quantidade;
+      
+      totalProducao += quantidade;
+      totalRegistros++;
+    }
+    
+    // Calcular média diária
+    final mediaDiaria = totalRegistros > 0 ? totalProducao / 7 : 0.0;
+    
+    setState(() {
+      _mediaProducaoDiaria = mediaDiaria;
+      _producaoSemanal = producaoPorDia.entries
+          .map((entry) => ChartData(entry.key, entry.value))
+          .toList();
+    });
+  }
+
+  Future<void> _loadSaudeData() async {
+    final repo = Provider.of<AtividadesRepository>(context, listen: false);
+    final saudeActivities = repo.getAtividadesPorCategoria('Saúde');
+    
+    // Agrupar por mês (últimos 6 meses)
+    Map<String, int> saudePorMes = {
+      'Jan': 0,
+      'Fev': 0,
+      'Mar': 0,
+      'Abr': 0,
+      'Mai': 0,
+      'Jun': 0,
+    };
+    
+    // Para este exemplo, vamos usar dados simulados baseados nas atividades existentes
+    List<String> meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
+    for (int i = 0; i < meses.length; i++) {
+      saudePorMes[meses[i]] = (saudeActivities.length / 6).round();
+    }
+    
+    setState(() {
+      _saudeData = saudePorMes.entries
+          .map((entry) => ChartData(entry.key, entry.value.toDouble()))
+          .toList();
+    });
+  }
+
+  Future<void> _loadCicloData() async {
+    final snapshot = await FirebaseFirestore.instance.collection('vacas').get();
+    
+    Map<String, int> cicloCounts = {
+      'Cio': 0,
+      'Insem.': 0,
+      'Gest.': 0,
+      'Parto': 0,
+    };
+    
+    for (var doc in snapshot.docs) {
+      final data = doc.data();
+      final status = data['status_reprodutivo'] ?? data['ciclo'] ?? 'Cio';
+      
+      if (cicloCounts.containsKey(status)) {
+        cicloCounts[status] = cicloCounts[status]! + 1;
+      } else {
+        // Mapear outros status para os conhecidos
+        if (status.toString().toLowerCase().contains('cio')) {
+          cicloCounts['Cio'] = cicloCounts['Cio']! + 1;
+        } else if (status.toString().toLowerCase().contains('insem')) {
+          cicloCounts['Insem.'] = cicloCounts['Insem.']! + 1;
+        } else if (status.toString().toLowerCase().contains('gest')) {
+          cicloCounts['Gest.'] = cicloCounts['Gest.']! + 1;
+        } else {
+          cicloCounts['Cio'] = cicloCounts['Cio']! + 1;
+        }
+      }
+    }
+    
+    setState(() {
+      _cicloData = cicloCounts.entries
+          .map((entry) => ChartData(entry.key, entry.value.toDouble()))
+          .toList();
+    });
+  }
+
+  Future<void> _createSampleData() async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+      
+      // Criar vacas de exemplo
+      final vacasExemplo = [
+        {
+          'nome': 'Malhada',
+          'raca': 'Holandesa',
+          'lactacao': true,
+          'status_reprodutivo': 'Cio',
+          'idade': 4,
+          'peso': 650.0,
+        },
+        {
+          'nome': 'Estrela',
+          'raca': 'Jersey',
+          'lactacao': true,
+          'status_reprodutivo': 'Gest.',
+          'idade': 5,
+          'peso': 450.0,
+        },
+        {
+          'nome': 'Flor',
+          'raca': 'Gir',
+          'lactacao': false,
+          'status_reprodutivo': 'Parto',
+          'idade': 3,
+          'peso': 520.0,
+        },
+        {
+          'nome': 'Linda',
+          'raca': 'Holandesa',
+          'lactacao': true,
+          'status_reprodutivo': 'Insem.',
+          'idade': 6,
+          'peso': 700.0,
+        },
+        {
+          'nome': 'Mimosa',
+          'raca': 'Parda Suíça',
+          'lactacao': true,
+          'status_reprodutivo': 'Cio',
+          'idade': 4,
+          'peso': 580.0,
+        },
+      ];
+      
+      // Adicionar vacas
+      for (var vaca in vacasExemplo) {
+        await firestore.collection('vacas').add(vaca);
+      }
+      
+      // Criar registros de produção dos últimos 7 dias
+      final now = DateTime.now();
+      for (int i = 0; i < 7; i++) {
+        final data = now.subtract(Duration(days: i));
+        
+        // Simular 2-3 ordenhas por dia
+        for (int j = 0; j < 2; j++) {
+          await firestore.collection('registros_producao').add({
+            'vacaId': 'vaca_exemplo_${i % 3}',
+            'quantidade': 15.0 + (i * 2) + (j * 5), // Variação realista
+            'dataHora': Timestamp.fromDate(data.add(Duration(hours: 6 + (j * 12)))),
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Dados de exemplo criados com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      
+      // Recarregar dashboard
+      _loadDashboardData();
+      
+    } catch (e) {
+      print('Erro ao criar dados de exemplo: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao criar dados de exemplo: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +302,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadDashboardData,
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'create_sample') {
+                _createSampleData();
+              }
+            },
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'create_sample',
+                child: Row(
+                  children: [
+                    Icon(Icons.add_circle_outline),
+                    SizedBox(width: 8),
+                    Text('Criar Dados de Exemplo'),
+                  ],
+                ),
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.red),
             onPressed: () {
@@ -34,23 +338,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(context),
-            const SizedBox(height: 20),
-            _buildQuickStats(context),
-            const SizedBox(height: 20),
-            _buildChartSelector(context),
-            const SizedBox(height: 10),
-            _buildSelectedChart(context),
-            const SizedBox(height: 20),
-            _buildRecentActivities(context),
-          ],
-        ),
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(context),
+                  const SizedBox(height: 20),
+                  _buildQuickStats(context),
+                  const SizedBox(height: 20),
+                  _buildChartSelector(context),
+                  const SizedBox(height: 10),
+                  _buildSelectedChart(context),
+                  const SizedBox(height: 20),
+                  _buildRecentActivities(context),
+                ],
+              ),
+            ),
     );
   }
 
@@ -82,22 +388,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         _buildStatCard(
           "Total de Vacas", 
-          "24", 
+          _totalVacas.toString(), 
           Icons.pets, 
           Colors.blue,
         ),
         _buildStatCard(
           "Vacas em Lactação", 
-          "18", 
+          _vacasLactacao.toString(), 
           Icons.opacity, 
           Colors.green,
         ),
         _buildStatCard(
           "Média Diária (L)", 
-          "320", 
+          _mediaProducaoDiaria.toStringAsFixed(1), 
           Icons.local_drink, 
           Colors.orange,
         ),
+        _buildNotificationCard(),
       ],
     );
   }
@@ -128,6 +435,80 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildNotificationCard() {
+    return FutureBuilder<List<PendingNotificationRequest>>(
+      future: NotificationService.getPendingNotifications(),
+      builder: (context, snapshot) {
+        final notificationsCount = snapshot.data?.length ?? 0;
+        
+        return InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const NotificacoesScreen()),
+            );
+          },
+          child: Card(
+            elevation: 4,
+            child: Container(
+              width: 160,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Stack(
+                    children: [
+                      Icon(
+                        Icons.notifications,
+                        size: 32,
+                        color: Colors.purple,
+                      ),
+                      if (notificationsCount > 0)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              notificationsCount > 9 ? '9+' : notificationsCount.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    notificationsCount.toString(),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'Notificações',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -181,26 +562,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 10),
             SizedBox(
               height: 250,
-              child: SfCartesianChart(
-                primaryXAxis: CategoryAxis(),
-                series: <CartesianSeries>[
-                  ColumnSeries<ChartData, String>(
-                    dataSource: [
-                      ChartData('Seg', 310),
-                      ChartData('Ter', 320),
-                      ChartData('Qua', 290),
-                      ChartData('Qui', 330),
-                      ChartData('Sex', 340),
-                      ChartData('Sáb', 300),
-                      ChartData('Dom', 280),
-                    ],
-                    xValueMapper: (ChartData data, _) => data.x,
-                    yValueMapper: (ChartData data, _) => data.y,
-                    color: Colors.blue,
-                    dataLabelSettings: const DataLabelSettings(isVisible: true),
-                  )
-                ],
-              ),
+              child: _producaoSemanal.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.bar_chart, size: 48, color: Colors.grey),
+                          SizedBox(height: 8),
+                          Text('Nenhum dado de produção disponível'),
+                          Text('Registre a produção de leite para ver os gráficos'),
+                        ],
+                      ),
+                    )
+                  : SfCartesianChart(
+                      primaryXAxis: CategoryAxis(),
+                      series: <CartesianSeries>[
+                        ColumnSeries<ChartData, String>(
+                          dataSource: _producaoSemanal,
+                          xValueMapper: (ChartData data, _) => data.x,
+                          yValueMapper: (ChartData data, _) => data.y,
+                          color: Colors.blue,
+                          dataLabelSettings: const DataLabelSettings(isVisible: true),
+                        )
+                      ],
+                    ),
             ),
           ],
         ),
@@ -223,31 +608,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 10),
             SizedBox(
               height: 250,
-              child: SfCartesianChart(
-                primaryXAxis: CategoryAxis(),
-                series: <CartesianSeries>[
-                  LineSeries<ChartData, String>(
-                    dataSource: [
-                      ChartData('Jan', 2),
-                      ChartData('Fev', 1),
-                      ChartData('Mar', 3),
-                      ChartData('Abr', 0),
-                      ChartData('Mai', 1),
-                      ChartData('Jun', 2),
-                    ],
-                    xValueMapper: (ChartData data, _) => data.x,
-                    yValueMapper: (ChartData data, _) => data.y,
-                    color: Colors.red,
-                    markerSettings: const MarkerSettings(isVisible: true),
-                    dataLabelSettings: const DataLabelSettings(isVisible: true),
-                  )
-                ],
-              ),
+              child: _saudeData.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.medical_services, size: 48, color: Colors.grey),
+                          SizedBox(height: 8),
+                          Text('Nenhum dado de saúde disponível'),
+                          Text('Registre atividades de saúde para ver os gráficos'),
+                        ],
+                      ),
+                    )
+                  : SfCartesianChart(
+                      primaryXAxis: CategoryAxis(),
+                      series: <CartesianSeries>[
+                        LineSeries<ChartData, String>(
+                          dataSource: _saudeData,
+                          xValueMapper: (ChartData data, _) => data.x,
+                          yValueMapper: (ChartData data, _) => data.y,
+                          color: Colors.red,
+                          markerSettings: const MarkerSettings(isVisible: true),
+                          dataLabelSettings: const DataLabelSettings(isVisible: true),
+                        )
+                      ],
+                    ),
             ),
             const Padding(
               padding: EdgeInsets.only(top: 8.0),
               child: Text(
-                'Número de casos de saúde por mês',
+                'Número de problemas de saúde por mês',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ),
@@ -272,23 +662,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 10),
             SizedBox(
               height: 250,
-              child: SfCartesianChart(
-                primaryXAxis: CategoryAxis(),
-                series: <CartesianSeries>[
-                  BarSeries<ChartData, String>(
-                    dataSource: [
-                      ChartData('Cio', 5),
-                      ChartData('Insem.', 3),
-                      ChartData('Gest.', 2),
-                      ChartData('Parto', 1),
-                    ],
-                    xValueMapper: (ChartData data, _) => data.x,
-                    yValueMapper: (ChartData data, _) => data.y,
-                    color: Colors.purple,
-                    dataLabelSettings: const DataLabelSettings(isVisible: true),
-                  )
-                ],
-              ),
+              child: _cicloData.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.cable, size: 48, color: Colors.grey),
+                          SizedBox(height: 8),
+                          Text('Nenhum dado de ciclo disponível'),
+                          Text('Cadastre vacas com status reprodutivo para ver os gráficos'),
+                        ],
+                      ),
+                    )
+                  : SfCartesianChart(
+                      primaryXAxis: CategoryAxis(),
+                      series: <CartesianSeries>[
+                        BarSeries<ChartData, String>(
+                          dataSource: _cicloData,
+                          xValueMapper: (ChartData data, _) => data.x,
+                          yValueMapper: (ChartData data, _) => data.y,
+                          color: Colors.purple,
+                          dataLabelSettings: const DataLabelSettings(isVisible: true),
+                        )
+                      ],
+                    ),
             ),
             const Padding(
               padding: EdgeInsets.only(top: 8.0),
@@ -321,7 +718,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: todayActivities.isEmpty
-                  ? const Center(child: Text('Nenhum registro recente'))
+                  ? const Center(
+                      child: Column(
+                        children: [
+                          Icon(Icons.list_alt, size: 48, color: Colors.grey),
+                          SizedBox(height: 8),
+                          Text('Nenhum registro recente'),
+                          Text('Faça registros para visualizá-los aqui'),
+                        ],
+                      ),
+                    )
                   : Column(
                       children: todayActivities
                           .take(3)

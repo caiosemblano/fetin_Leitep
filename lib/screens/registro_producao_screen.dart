@@ -22,7 +22,8 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> {
       await FirebaseFirestore.instance.collection('registros_producao').add({
         'vacaId': vacaId,
         'quantidade': quantidade,
-        'dataHora': dataHora,
+        'dataHora': Timestamp.fromDate(dataHora),
+        'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
       rethrow;
@@ -36,6 +37,24 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> {
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
   String _selectedTipo = 'Leite';
+  String _selectedPeriodoCiclo = 'Cio';
+  List<Map<String, dynamic>> _vacas = [];
+  String? _selectedVacaId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVacas();
+  }
+
+  Future<void> _loadVacas() async {
+    final snapshot = await FirebaseFirestore.instance.collection('vacas').get();
+    setState(() {
+      _vacas = snapshot.docs.map((doc) {
+        return {'id': doc.id, ...doc.data()};
+      }).toList();
+    });
+  }
 
   @override
   void dispose() {
@@ -74,15 +93,28 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _vacaController,
+              DropdownButtonFormField<String>(
+                value: _selectedVacaId,
+                items: _vacas.map((vaca) {
+                  return DropdownMenuItem<String>(
+                    value: vaca['id'],
+                    child: Text('${vaca['nome']} - ${vaca['raca']}'),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedVacaId = value;
+                    final selectedVaca = _vacas.firstWhere((vaca) => vaca['id'] == value);
+                    _vacaController.text = selectedVaca['nome'];
+                  });
+                },
                 decoration: const InputDecoration(
                   labelText: 'Identificação da Vaca',
                   border: OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Por favor, informe a vaca';
+                    return 'Por favor, selecione uma vaca';
                   }
                   return null;
                 },
@@ -121,6 +153,39 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> {
                   },
                 ),
               const SizedBox(height: 16),
+              if (_selectedTipo == 'Ciclo')
+                DropdownButtonFormField<String>(
+                  value: _selectedPeriodoCiclo,
+                  items: [
+                    'Cio',
+                    'Cobertura',
+                    'Prenhez Confirmada',
+                    'Prenhez Avançada',
+                    'Parto',
+                    'Pós-Parto',
+                    'Lactação',
+                    'Secagem'
+                  ].map((periodo) => DropdownMenuItem(
+                        value: periodo,
+                        child: Text(periodo),
+                      )).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedPeriodoCiclo = value!;
+                    });
+                  },
+                  decoration: const InputDecoration(
+                    labelText: 'Período do Ciclo Reprodutivo',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor, selecione o período do ciclo';
+                    }
+                    return null;
+                  },
+                ),
+              if (_selectedTipo == 'Ciclo') const SizedBox(height: 16),
               ListTile(
                 title: const Text('Data'),
                 subtitle: Text(
@@ -163,40 +228,69 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> {
               ElevatedButton(
                 onPressed: () async {
                   if (_formKey.currentState!.validate()) {
+                    final messenger = ScaffoldMessenger.of(context);
+                    
+                    // Verificação adicional para _selectedVacaId
+                    if (_selectedVacaId == null || _selectedVacaId!.isEmpty) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('Por favor, selecione uma vaca!'),
+                        ),
+                      );
+                      return;
+                    }
+                    
                     if (_selectedTipo == 'Leite') {
                       try {
                         final quantidade = double.tryParse(
                           _quantidadeController.text,
                         );
                         if (quantidade == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             const SnackBar(
                               content: Text('Quantidade inválida!'),
                             ),
                           );
                           return;
                         }
-                        await salvarRegistroProducao(
-                          vacaId: _vacaController.text,
-                          quantidade: quantidade,
-                          dataHora: DateTime(
-                            _selectedDate.year,
-                            _selectedDate.month,
-                            _selectedDate.day,
-                            _selectedTime.hour,
-                            _selectedTime.minute,
-                          ),
+                        
+                        final dataHoraCompleta = DateTime(
+                          _selectedDate.year,
+                          _selectedDate.month,
+                          _selectedDate.day,
+                          _selectedTime.hour,
+                          _selectedTime.minute,
                         );
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        
+                        await salvarRegistroProducao(
+                          vacaId: _selectedVacaId!,
+                          quantidade: quantidade,
+                          dataHora: dataHoraCompleta,
+                        );
+                        
+                        messenger.showSnackBar(
                           const SnackBar(
                             content: Text('Registro salvo com sucesso!'),
+                            backgroundColor: Colors.green,
                           ),
                         );
-                        Navigator.pop(context);
+                        
+                        // Limpar o formulário
+                        _quantidadeController.clear();
+                        _selectedVacaId = null;
+                        _vacaController.clear();
+                        setState(() {
+                          _selectedDate = DateTime.now();
+                          _selectedTime = TimeOfDay.now();
+                          _selectedTipo = 'Leite';
+                          _selectedPeriodoCiclo = 'Cio';
+                        });
+                        
                       } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(
                             content: Text('Erro ao salvar registro: $e'),
+                            backgroundColor: Colors.red,
                           ),
                         );
                       }
@@ -207,24 +301,40 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> {
                           context,
                           listen: false,
                         );
+                        
                         final atividade = Activity(
                           name: _selectedTipo == 'Saúde'
                               ? 'Saúde: ${_vacaController.text} - ${_observacaoController.text}'
-                              : 'Ciclo: ${_vacaController.text} - ${_observacaoController.text}',
+                              : 'Ciclo: ${_vacaController.text} - $_selectedPeriodoCiclo - ${_observacaoController.text}',
                           time: _selectedTime,
                           category: _selectedTipo,
                         );
+                        
                         repo.addAtividade(_selectedDate, atividade);
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        
+                        messenger.showSnackBar(
                           const SnackBar(
                             content: Text('Registro salvo com sucesso!'),
+                            backgroundColor: Colors.green,
                           ),
                         );
-                        Navigator.pop(context);
+                        
+                        // Limpar o formulário
+                        _observacaoController.clear();
+                        _selectedVacaId = null;
+                        _vacaController.clear();
+                        setState(() {
+                          _selectedDate = DateTime.now();
+                          _selectedTime = TimeOfDay.now();
+                          _selectedTipo = 'Leite';
+                          _selectedPeriodoCiclo = 'Cio';
+                        });
+                        
                       } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(
                             content: Text('Erro ao salvar registro: $e'),
+                            backgroundColor: Colors.red,
                           ),
                         );
                       }

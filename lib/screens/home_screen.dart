@@ -3,6 +3,11 @@ import 'dashboard_screen.dart';
 import 'atividades_screen.dart';
 import 'vacas_screen.dart';
 import 'registro_producao_screen.dart';
+import 'saude_screen.dart';
+import 'relatorios_screen.dart';
+import 'configuracoes_screen.dart';
+import 'notificacoes_screen.dart';
+import 'limpeza_dados_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -62,7 +67,14 @@ class _HomeScreenState extends State<HomeScreen> {
         appBar: AppBar(
           title: const Text('Leite+'),
           automaticallyImplyLeading: false,
+          leading: Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () => Scaffold.of(context).openDrawer(),
+            ),
+          ),
         ),
+        drawer: _buildDrawer(),
         body: IndexedStack(
           index: _selectedIndex,
           children: _screens,
@@ -105,6 +117,120 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: _onItemTapped,
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDrawer() {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          const DrawerHeader(
+            decoration: BoxDecoration(
+              color: Colors.blue,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.agriculture,
+                  color: Colors.white,
+                  size: 40,
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'Leite+',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'Gestão da sua fazenda',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.medical_services),
+            title: const Text('Saúde'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SaudeScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.assessment),
+            title: const Text('Relatórios'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const RelatoriosScreen()),
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.notifications),
+            title: const Text('Notificações'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const NotificacoesScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.cleaning_services),
+            title: const Text('Limpeza de Dados'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LimpezaDadosScreen()),
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('Configurações'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ConfiguracoesScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.help),
+            title: const Text('Ajuda'),
+            onTap: () {
+              Navigator.pop(context);
+              // Implementar tela de ajuda
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('Sair'),
+            onTap: () {
+              Navigator.pop(context);
+              // Implementar logout
+            },
+          ),
+        ],
       ),
     );
   }

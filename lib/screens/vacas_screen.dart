@@ -250,9 +250,10 @@ class _VacasScreenState extends State<VacasScreen> {
                   child: const Text('Cancelar'),
                 ),
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     if (_validateForm()) {
-                      _saveVaca(
+                      final navigator = Navigator.of(context);
+                      await _saveVaca(
                         nome: _nomeController.text,
                         raca: _racaController.text,
                         idade: _idadeController.text,
@@ -260,7 +261,7 @@ class _VacasScreenState extends State<VacasScreen> {
                         lactacao: lactacao,
                       );
                       _clearForm();
-                      Navigator.pop(context);
+                      navigator.pop();
                     }
                   },
                   child: Text(isEditing ? 'Salvar' : 'Adicionar'),
@@ -295,15 +296,25 @@ class _VacasScreenState extends State<VacasScreen> {
       'lactacao': lactacao,
     };
 
+    final messenger = ScaffoldMessenger.of(context);
+
     if (_editingId != null) {
       // Atualiza vaca existente
       await FirebaseFirestore.instance
           .collection('vacas')
           .doc(_editingId)
           .set(vacaData);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Vaca atualizada com sucesso!')),
+      );
     } else {
       // Adiciona nova vaca
       await FirebaseFirestore.instance.collection('vacas').add(vacaData);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Vaca adicionada com sucesso!')),
+      );
     }
 
     await _loadVacas();
@@ -325,24 +336,91 @@ class _VacasScreenState extends State<VacasScreen> {
   void _deleteVaca(Map<String, dynamic> vaca) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Confirmar Exclusão'),
-        content: Text('Deseja remover ${vaca['nome']}?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Deseja remover ${vaca['nome']}?'),
+            const SizedBox(height: 8),
+            const Text(
+              '⚠️ Isso também removerá:',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+            ),
+            const Text('• Todos os registros de produção'),
+            const Text('• Histórico de atividades relacionadas'),
+            const Text('• Dados de saúde e ciclo reprodutivo'),
+          ],
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancelar'),
           ),
           TextButton(
             onPressed: () async {
-              await FirebaseFirestore.instance
-                  .collection('vacas')
-                  .doc(vaca['id'])
-                  .delete();
-              await _loadVacas();
-              Navigator.pop(context);
+              final navigator = Navigator.of(dialogContext);
+              final messenger = ScaffoldMessenger.of(context);
+              
+              try {
+                // Mostrar loading
+                showDialog(
+                  context: dialogContext,
+                  barrierDismissible: false,
+                  builder: (_) => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+                
+                // 1. Excluir registros de produção
+                final producaoSnapshot = await FirebaseFirestore.instance
+                    .collection('registros_producao')
+                    .where('vacaId', isEqualTo: vaca['id'])
+                    .get();
+                
+                final batch = FirebaseFirestore.instance.batch();
+                
+                for (var doc in producaoSnapshot.docs) {
+                  batch.delete(doc.reference);
+                }
+                
+                // 2. Excluir a vaca
+                batch.delete(
+                  FirebaseFirestore.instance.collection('vacas').doc(vaca['id'])
+                );
+                
+                // Executar batch
+                await batch.commit();
+                
+                // Fechar loading
+                Navigator.pop(dialogContext);
+                // Fechar dialog principal
+                navigator.pop();
+                
+                await _loadVacas();
+                
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('${vaca['nome']} e todos os registros relacionados foram removidos'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+                
+              } catch (e) {
+                // Fechar loading se ainda estiver aberto
+                Navigator.pop(dialogContext);
+                navigator.pop();
+                
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('Erro ao excluir: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
-            child: const Text('Remover', style: TextStyle(color: Colors.red)),
+            child: const Text('Remover Tudo', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
