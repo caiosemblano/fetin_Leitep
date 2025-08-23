@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/app_logger.dart';
 
 class RelatoriosScreen extends StatefulWidget {
   const RelatoriosScreen({super.key});
@@ -110,7 +111,7 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
       });
       
     } catch (e) {
-      print('Erro ao carregar dados: $e');
+      AppLogger.error('Erro ao carregar dados dos relatórios', e);
       setState(() => _isLoading = false);
     }
   }
@@ -156,7 +157,7 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
               color: Colors.grey[100],
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.3),
+                  color: Colors.grey.withValues(alpha: 0.3),
                   spreadRadius: 1,
                   blurRadius: 3,
                   offset: const Offset(0, 1),
@@ -319,7 +320,7 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: cor.withOpacity(0.1),
+          backgroundColor: cor.withValues(alpha: 0.1),
           child: Icon(icone, color: cor),
         ),
         title: Text(titulo, style: const TextStyle(fontWeight: FontWeight.bold)),

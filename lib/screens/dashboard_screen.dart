@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/notification_service.dart';
 import 'notificacoes_screen.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../utils/app_logger.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -51,7 +52,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Erro ao carregar dados da dashboard: $e');
+      AppLogger.error('Erro ao carregar dados da dashboard', e);
       setState(() {
         _isLoading = false;
       });
@@ -284,7 +285,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _loadDashboardData();
       
     } catch (e) {
-      print('Erro ao criar dados de exemplo: $e');
+      AppLogger.error('Erro ao criar dados de exemplo', e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

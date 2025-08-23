@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FinanceiroScreen extends StatefulWidget {
   const FinanceiroScreen({super.key});
@@ -11,7 +10,6 @@ class FinanceiroScreen extends StatefulWidget {
 class _FinanceiroScreenState extends State<FinanceiroScreen> {
   final double _receitaTotal = 0.0;
   final double _despesaTotal = 0.0;
-  final List<Map<String, dynamic>> _transacoes = [];
 
   @override
   Widget build(BuildContext context) {

@@ -394,7 +394,7 @@ class _VacasScreenState extends State<VacasScreen> {
                 await batch.commit();
                 
                 // Fechar loading
-                Navigator.pop(dialogContext);
+                navigator.pop();
                 // Fechar dialog principal
                 navigator.pop();
                 
@@ -409,7 +409,7 @@ class _VacasScreenState extends State<VacasScreen> {
                 
               } catch (e) {
                 // Fechar loading se ainda estiver aberto
-                Navigator.pop(dialogContext);
+                navigator.pop();
                 navigator.pop();
                 
                 messenger.showSnackBar(

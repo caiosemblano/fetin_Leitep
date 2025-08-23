@@ -2,6 +2,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:permission_handler/permission_handler.dart';
+import '../utils/app_logger.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notifications = 
@@ -43,7 +44,7 @@ class NotificationService {
 
   static void _onNotificationTap(NotificationResponse response) {
     // Lidar com toque na notificação
-    print('Notificação tocada: ${response.payload}');
+    AppLogger.info('Notificação tocada: ${response.payload}');
   }
 
   static Future<bool> requestPermissions() async {

@@ -219,24 +219,28 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
         _isScanning = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Análise concluída: $registrosOrfaos registros órfãos encontrados'),
-          backgroundColor: registrosOrfaos > 0 ? Colors.orange : Colors.green,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Análise concluída: $registrosOrfaos registros órfãos encontrados'),
+            backgroundColor: registrosOrfaos > 0 ? Colors.orange : Colors.green,
+          ),
+        );
+      }
 
     } catch (e) {
       setState(() {
         _isScanning = false;
       });
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro na análise: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro na análise: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -303,24 +307,28 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
         _registrosOrfaos = 0;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Limpeza concluída: $removidos registros removidos'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Limpeza concluída: $removidos registros removidos'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
 
     } catch (e) {
       setState(() {
         _isCleaning = false;
       });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro na limpeza: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro na limpeza: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 }

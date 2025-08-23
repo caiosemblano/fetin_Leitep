@@ -226,7 +226,7 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
                           },
                         ),
                       );
-                    }).toList(),
+                    }),
                 ],
               ),
             ),
