@@ -6,6 +6,12 @@ import 'firebase_options.dart'; // Certifique-se que este arquivo foi gerado// A
 import 'package:provider/provider.dart';
 import 'screens/atividades_repository.dart';
 import 'services/notification_service.dart';
+import 'services/production_analysis_service.dart';
+import 'services/animal_growth_service.dart';
+import 'services/persistent_auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'screens/dashboard_screen.dart';
+import 'dart:async';
 
 
 void main() async {
@@ -17,6 +23,12 @@ void main() async {
   // Inicializar notificações
   await NotificationService.initialize();
   await NotificationService.requestPermissions();
+  
+  // Agendar análise automática de produção
+  await ProductionAnalysisService.scheduleAutomaticAnalysis();
+  
+  // Agendar verificação automática de crescimento de animais
+  await AnimalGrowthService.scheduleGrowthCheck();
   
   runApp(
     MultiProvider(
@@ -53,7 +65,107 @@ class MyApp extends StatelessWidget {
           elevation: 10,
         ),
       ),
-      home: const LoginScreen(),
+      home: const AuthWrapper(), // Widget que verifica autenticação
     );
+  }
+}
+
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
+  bool _isCheckingAuth = true;
+  bool _isLoggedIn = false;
+  Timer? _logoutTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checkAuthStatus();
+    _startLogoutTimer();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _logoutTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startLogoutTimer() {
+    // Timer desabilitado - "lembrar de mim" agora é permanente até logout manual
+    _logoutTimer?.cancel();
+    // _logoutTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+    //   _checkAutoLogout();
+    // });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // App voltou do background - apenas atualizar atividade
+        PersistentAuthService.updateLastActivity();
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+        // App foi para background - atualizar última atividade
+        PersistentAuthService.updateLastActivity();
+        break;
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        break;
+    }
+  }
+
+  Future<void> _checkAuthStatus() async {
+    try {
+      final shouldKeep = await PersistentAuthService.shouldKeepLoggedIn();
+      final currentUser = FirebaseAuth.instance.currentUser;
+      
+      setState(() {
+        _isLoggedIn = shouldKeep && currentUser != null;
+        _isCheckingAuth = false;
+      });
+      
+      if (_isLoggedIn) {
+        // Atualizar última atividade
+        await PersistentAuthService.updateLastActivity();
+      }
+    } catch (e) {
+      setState(() {
+        _isLoggedIn = false;
+        _isCheckingAuth = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isCheckingAuth) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Verificando autenticação...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return _isLoggedIn 
+        ? const DashboardScreen() 
+        : const LoginScreen();
   }
 }

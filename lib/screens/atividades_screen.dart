@@ -3,18 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'atividades_repository.dart';
 
-class Activity {
-  final String name;
-  final TimeOfDay time;
-  final String category;
-
-  Activity({
-    required this.name,
-    required this.time,
-    required this.category,
-  });
-}
-
 class AtividadesScreen extends StatefulWidget {
   const AtividadesScreen({super.key});
 

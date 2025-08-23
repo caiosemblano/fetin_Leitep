@@ -1,6 +1,17 @@
 import 'package:flutter/material.dart';
-import 'atividades_screen.dart';
 import '../services/notification_service.dart';
+
+class Activity {
+  final String name;
+  final TimeOfDay time;
+  final String category;
+
+  Activity({
+    required this.name,
+    required this.time,
+    required this.category,
+  });
+}
 
 class AtividadesRepository extends ChangeNotifier {
   final Map<DateTime, List<Activity>> _activities = {};
@@ -25,34 +36,13 @@ class AtividadesRepository extends ChangeNotifier {
     final normalizedDate = DateTime(date.year, date.month, date.day);
     _activities.putIfAbsent(normalizedDate, () => []).add(activity);
     
-    // Se a atividade é para hoje ou no futuro, criar notificação
-    final hoje = DateTime.now();
-    final hojeNormalizado = DateTime(hoje.year, hoje.month, hoje.day);
-    
-    if (normalizedDate.isAfter(hojeNormalizado) || 
-        normalizedDate.isAtSameMomentAs(hojeNormalizado)) {
-      
-      final dataHoraAtividade = DateTime(
-        normalizedDate.year,
-        normalizedDate.month,
-        normalizedDate.day,
-        activity.time.hour,
-        activity.time.minute,
-      );
-      
-      // Criar notificação 30 minutos antes da atividade
-      final notificationTime = dataHoraAtividade.subtract(const Duration(minutes: 30));
-      
-      if (notificationTime.isAfter(DateTime.now())) {
-        NotificationService.scheduleNotification(
-          id: activity.hashCode, // Usar hash como ID único
-          title: '⏰ Atividade Programada',
-          body: '${activity.name} em 30 minutos',
-          scheduledDate: notificationTime,
-          payload: 'atividade_${activity.hashCode}',
-        );
-      }
-    }
+    // Notificação imediata confirmando criação da atividade
+    NotificationService.showInstantNotification(
+      id: DateTime.now().millisecondsSinceEpoch,
+      title: '✅ Atividade Criada',
+      body: '${activity.name} agendada para ${_formatDate(normalizedDate)} às ${_formatTime(activity.time)}',
+      payload: 'atividade_criada_${activity.hashCode}',
+    );
     
     notifyListeners();
   }
@@ -60,10 +50,23 @@ class AtividadesRepository extends ChangeNotifier {
   void removeAtividade(DateTime date, Activity activity) {
     final normalizedDate = DateTime(date.year, date.month, date.day);
     _activities[normalizedDate]?.remove(activity);
-    
-    // Cancelar notificação relacionada à atividade
-    NotificationService.cancelNotification(activity.hashCode);
-    
     notifyListeners();
+  }
+
+  String _formatDate(DateTime date) {
+    final hoje = DateTime.now();
+    final amanha = hoje.add(const Duration(days: 1));
+    
+    if (date.year == hoje.year && date.month == hoje.month && date.day == hoje.day) {
+      return 'hoje';
+    } else if (date.year == amanha.year && date.month == amanha.month && date.day == amanha.day) {
+      return 'amanhã';
+    } else {
+      return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}';
+    }
+  }
+
+  String _formatTime(TimeOfDay time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 }

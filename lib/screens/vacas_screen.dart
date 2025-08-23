@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/animal_growth_service.dart';
 
 class VacasScreen extends StatefulWidget {
   const VacasScreen({super.key});
@@ -16,8 +17,11 @@ class _VacasScreenState extends State<VacasScreen> {
   final TextEditingController _racaController = TextEditingController();
   final TextEditingController _idadeController = TextEditingController();
   final TextEditingController _pesoController = TextEditingController();
+  final TextEditingController _maeController = TextEditingController();
+  final TextEditingController _paiController = TextEditingController();
 
   String _selectedFilter = 'Todas';
+  String _selectedTipoFilter = 'Todos';
   bool _showOnlyLactantes = false;
   List<Map<String, dynamic>> _filteredVacas = [];
   String? _editingId;
@@ -36,6 +40,8 @@ class _VacasScreenState extends State<VacasScreen> {
     _racaController.dispose();
     _idadeController.dispose();
     _pesoController.dispose();
+    _maeController.dispose();
+    _paiController.dispose();
     super.dispose();
   }
 
@@ -48,9 +54,12 @@ class _VacasScreenState extends State<VacasScreen> {
             vaca['raca'].toLowerCase().contains(query);
         final matchesFilter =
             _selectedFilter == 'Todas' || vaca['raca'] == _selectedFilter;
-        final matchesLactacao = !_showOnlyLactantes || vaca['lactacao'];
+        final matchesTipo = _selectedTipoFilter == 'Todos' || 
+            (vaca['tipo'] ?? 'vaca') == _selectedTipoFilter;
+        final matchesLactacao = !_showOnlyLactantes || 
+            (vaca['lactacao'] ?? false);
 
-        return matchesSearch && matchesFilter && matchesLactacao;
+        return matchesSearch && matchesFilter && matchesTipo && matchesLactacao;
       }).toList();
     });
   }
@@ -58,7 +67,21 @@ class _VacasScreenState extends State<VacasScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Gerenciamento de Vacas')),
+      appBar: AppBar(
+        title: const Text('Gerenciamento de Animais'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.trending_up),
+            tooltip: 'Verificar Crescimento',
+            onPressed: () => _checkGrowthManually(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.analytics),
+            tooltip: 'Estatísticas',
+            onPressed: () => _showGrowthStats(),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Padding(
@@ -104,63 +127,155 @@ class _VacasScreenState extends State<VacasScreen> {
   Widget _buildFilterRow() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              value: _selectedFilter,
-              items: ['Todas', 'Holandesa', 'Jersey', 'Gir']
-                  .map(
-                    (raca) => DropdownMenuItem(value: raca, child: Text(raca)),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedFilter = value!;
-                  _filterVacas();
-                });
-              },
-              decoration: const InputDecoration(
-                labelText: 'Filtrar por raça',
-                border: OutlineInputBorder(),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _selectedFilter,
+                  items: ['Todas', 'Holandesa', 'Jersey', 'Gir']
+                      .map(
+                        (raca) => DropdownMenuItem(value: raca, child: Text(raca)),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedFilter = value!;
+                      _filterVacas();
+                    });
+                  },
+                  decoration: const InputDecoration(
+                    labelText: 'Raça',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _selectedTipoFilter,
+                  items: ['Todos', 'vaca', 'bezerro', 'bezerra', 'novilha']
+                      .map(
+                        (tipo) => DropdownMenuItem(value: tipo, child: Text(_formatTipo(tipo))),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedTipoFilter = value!;
+                      _filterVacas();
+                    });
+                  },
+                  decoration: const InputDecoration(
+                    labelText: 'Tipo',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          FilterChip(
-            label: const Text('Em lactação'),
-            selected: _showOnlyLactantes,
-            onSelected: (value) {
-              setState(() {
-                _showOnlyLactantes = value;
-                _filterVacas();
-              });
-            },
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              FilterChip(
+                label: const Text('Em lactação'),
+                selected: _showOnlyLactantes,
+                onSelected: (value) {
+                  setState(() {
+                    _showOnlyLactantes = value;
+                    _filterVacas();
+                  });
+                },
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
+  String _formatTipo(String tipo) {
+    switch (tipo) {
+      case 'Todos': return 'Todos';
+      case 'vaca': return 'Vaca Adulta';
+      case 'bezerro': return 'Bezerro';
+      case 'bezerra': return 'Bezerra';
+      case 'novilha': return 'Novilha';
+      default: return tipo;
+    }
+  }
+
   Widget _buildVacaCard(Map<String, dynamic> vaca) {
+    final tipo = vaca['tipo'] ?? 'vaca';
+    final isYoung = tipo == 'bezerro' || tipo == 'bezerra' || tipo == 'novilha';
+    
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: ListTile(
-        leading: const Icon(Icons.pets, size: 40),
-        title: Text(vaca['nome']),
+        leading: CircleAvatar(
+          backgroundColor: _getTypeColor(tipo),
+          child: Icon(
+            _getTypeIcon(tipo),
+            color: Colors.white,
+          ),
+        ),
+        title: Row(
+          children: [
+            Expanded(child: Text(vaca['nome'])),
+            if (isYoung)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.orange[100],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  _formatTipo(tipo),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.orange[800],
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Raça: ${vaca['raca']}'),
             Text('Idade: ${vaca['idade']} anos'),
             Text('Peso: ${vaca['peso']} kg'),
-            if (vaca['lactacao'])
+            if (vaca['lactacao'] == true)
               const Text('Em lactação', style: TextStyle(color: Colors.green)),
+            if (isYoung && _isReadyToPromote(vaca))
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.green[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '🎉 Pronto para ser vaca adulta!',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.green[800],
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
           ],
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (isYoung && _isReadyToPromote(vaca))
+              IconButton(
+                icon: const Icon(Icons.trending_up, color: Colors.green),
+                tooltip: 'Promover para vaca adulta',
+                onPressed: () => _promoteAnimal(vaca),
+              ),
             IconButton(
               icon: const Icon(Icons.edit, color: Colors.blue),
               onPressed: () => _showVacaForm(context, vaca: vaca),
@@ -173,6 +288,51 @@ class _VacasScreenState extends State<VacasScreen> {
         ),
       ),
     );
+  }
+
+  Color _getTypeColor(String tipo) {
+    switch (tipo) {
+      case 'bezerro':
+      case 'bezerra':
+        return Colors.brown[300]!;
+      case 'novilha':
+        return Colors.amber[600]!;
+      case 'vaca':
+      default:
+        return Colors.blue[600]!;
+    }
+  }
+
+  IconData _getTypeIcon(String tipo) {
+    switch (tipo) {
+      case 'bezerro':
+      case 'bezerra':
+        return Icons.child_care;
+      case 'novilha':
+        return Icons.person;
+      case 'vaca':
+      default:
+        return Icons.pets;
+    }
+  }
+
+  bool _isReadyToPromote(Map<String, dynamic> animal) {
+    try {
+      if (animal.containsKey('dataNascimento')) {
+        final dataNascimento = (animal['dataNascimento'] as Timestamp).toDate();
+        final idade = DateTime.now().difference(dataNascimento);
+        return idade.inDays >= (18 * 30); // 18 meses
+      } else if (animal.containsKey('idadeMeses')) {
+        final idadeMeses = animal['idadeMeses'] as int;
+        return idadeMeses >= 18;
+      } else if (animal.containsKey('idade')) {
+        final idadeAnos = double.tryParse(animal['idade'].toString()) ?? 0;
+        return idadeAnos >= 1.5; // 18 meses = 1.5 anos
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
   }
 
   void _showVacaForm(BuildContext context, {Map<String, dynamic>? vaca}) {
@@ -432,6 +592,183 @@ class _VacasScreenState extends State<VacasScreen> {
     _racaController.clear();
     _idadeController.clear();
     _pesoController.clear();
+    _maeController.clear();
+    _paiController.clear();
     _editingId = null;
+  }
+
+  // Verificar crescimento manualmente
+  Future<void> _checkGrowthManually() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Verificando crescimento...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      await AnimalGrowthService.checkAndPromoteAnimals();
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Verificação de crescimento concluída!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await _loadVacas();
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Erro: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Mostrar estatísticas de crescimento
+  Future<void> _showGrowthStats() async {
+    final stats = await AnimalGrowthService.getGrowthStats();
+    
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('📊 Estatísticas dos Animais'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildStatRow('🐄 Vacas Adultas:', stats['vacasAdultas'].toString()),
+              _buildStatRow('🐮 Novilhas:', stats['novilhas'].toString()),
+              _buildStatRow('🐄 Bezerros:', stats['bezerros'].toString()),
+              const Divider(),
+              _buildStatRow('🎉 Prontos p/ Promoção:', stats['prontosPraPromocao'].toString(), Colors.green),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Fechar'),
+            ),
+            if (stats['prontosPraPromocao']! > 0)
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _checkGrowthManually();
+                },
+                child: const Text('Promover Agora'),
+              ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Widget _buildStatRow(String label, String value, [Color? color]) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Promover animal individual
+  Future<void> _promoteAnimal(Map<String, dynamic> animal) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('🎉 Promover Animal'),
+        content: Text(
+          'Deseja promover ${animal['nome']} para vaca adulta?\n\n'
+          'Esta ação irá:\n'
+          '• Alterar o tipo para "vaca adulta"\n'
+          '• Atualizar o peso estimado\n'
+          '• Habilitar para lactação',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Promover'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        // Atualizar dados do animal
+        final updatedData = Map<String, dynamic>.from(animal);
+        updatedData['tipo'] = 'vaca';
+        updatedData['categoria'] = 'adulta';
+        updatedData['dataPromocao'] = Timestamp.now();
+        
+        // Estimar peso adulto baseado na raça
+        switch (updatedData['raca'].toString().toLowerCase()) {
+          case 'holandesa':
+            updatedData['peso'] = '650';
+            break;
+          case 'jersey':
+            updatedData['peso'] = '450';
+            break;
+          case 'gir':
+            updatedData['peso'] = '500';
+            break;
+          default:
+            updatedData['peso'] = '550';
+        }
+
+        await FirebaseFirestore.instance
+            .collection('vacas')
+            .doc(animal['id'])
+            .update(updatedData);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('🎉 ${animal['nome']} promovido para vaca adulta!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          await _loadVacas();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('❌ Erro ao promover animal: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 }

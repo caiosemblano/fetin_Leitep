@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Adicionado
 import 'package:fetin/services/auth_service.dart';
+import 'package:fetin/services/persistent_auth_service.dart';
 import 'package:fetin/widgets/auth/auth_header.dart'; // Adicionado
 import 'package:fetin/widgets/auth/auth_text_field.dart'; // Adicionado
 import 'package:fetin/widgets/auth/auth_button.dart'; // Adicionado
@@ -19,12 +20,29 @@ class _LoginScreenState extends State<LoginScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   String error = '';
+  bool _rememberMe = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedEmail();
+  }
 
   @override
   void dispose() {
     emailController.dispose();
     passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSavedEmail() async {
+    final savedEmail = await PersistentAuthService.getSavedEmail();
+    if (savedEmail != null) {
+      emailController.text = savedEmail;
+      setState(() {
+        _rememberMe = true;
+      });
+    }
   }
 
   Future<void> _login() async {
@@ -38,12 +56,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
     User? user = await _auth.signIn(email, password);
     if (!mounted) return;
+    
     if (user != null) {
-      // Login bem-sucedido
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      // Configurar preferências de login persistente
+      await PersistentAuthService.setRememberMe(
+        remember: _rememberMe,
+        email: _rememberMe ? email : null,
       );
+      
+      // Login bem-sucedido - navegar para home
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      }
     } else {
       setState(() => error = 'Falha no login. Verifique suas credenciais.');
     }
@@ -74,7 +101,27 @@ class _LoginScreenState extends State<LoginScreen> {
                 obscureText: true,
                 controller: passwordController,
               ),
-              const SizedBox(height: 47),
+              const SizedBox(height: 24),
+              
+              // Checkbox "Lembrar de mim" simples
+              Row(
+                children: [
+                  Checkbox(
+                    value: _rememberMe,
+                    onChanged: (value) {
+                      setState(() => _rememberMe = value ?? false);
+                    },
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'Lembrar de mim (manter logado até fazer logout)',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 24),
               
               if (error.isNotEmpty)
                 Text(

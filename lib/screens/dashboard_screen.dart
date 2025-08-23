@@ -9,6 +9,8 @@ import '../services/notification_service.dart';
 import 'notificacoes_screen.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../utils/app_logger.dart';
+import '../services/production_analysis_service.dart';
+import 'alertas_producao_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -406,6 +408,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Colors.orange,
         ),
         _buildNotificationCard(),
+        _buildProductionAlertsCard(),
       ],
     );
   }
@@ -510,6 +513,71 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildProductionAlertsCard() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AlertasProducaoScreen(),
+          ),
+        );
+      },
+      child: Card(
+        elevation: 3,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.analytics,
+                    color: Colors.red[600],
+                    size: 32,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Análise\nProdução',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 12,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () async {
+                  await ProductionAnalysisService.analyzeAllCowsProduction();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Análise concluída!'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red[600],
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 32),
+                ),
+                child: const Text(
+                  'Analisar',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
