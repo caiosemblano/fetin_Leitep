@@ -34,14 +34,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: true,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
+      canPop: false, // Impede pop automático
+      onPopInvoked: (didPop) async {
         if (_selectedIndex != 0) {
           setState(() => _selectedIndex = 0);
           return;
         }
-        final navigator = Navigator.of(context, rootNavigator: true);
         final shouldExit = await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
@@ -60,7 +58,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
         if (shouldExit == true) {
-          navigator.maybePop();
+          // Fecha o app
+          Navigator.of(context).maybePop();
         }
       },
       child: Scaffold(
