@@ -222,4 +222,25 @@ class PersistentAuthService {
       AppLogger.error('Erro ao alterar configuração de logout automático', e);
     }
   }
+
+  /// Verificar se o usuário está logado
+  static Future<bool> isLoggedIn() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return false;
+      
+      // Se "lembrar de mim" estiver ativo, manter logado
+      final shouldKeep = await shouldKeepLoggedIn();
+      if (shouldKeep) {
+        await updateLastActivity();
+        return true;
+      }
+      
+      // Caso contrário, verificar se a sessão do Firebase ainda é válida
+      return currentUser.uid.isNotEmpty;
+    } catch (e) {
+      AppLogger.error('Erro ao verificar status de login', e);
+      return false;
+    }
+  }
 }

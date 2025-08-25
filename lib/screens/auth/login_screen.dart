@@ -64,11 +64,12 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _rememberMe ? email : null,
       );
       
-      // Login bem-sucedido - navegar para home
+      // Login bem-sucedido - navegar para home e limpar pilha
       if (mounted) {
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
         );
       }
     } else {

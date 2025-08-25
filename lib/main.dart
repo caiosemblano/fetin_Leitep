@@ -10,7 +10,7 @@ import 'services/production_analysis_service.dart';
 import 'services/animal_growth_service.dart';
 import 'services/persistent_auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'screens/dashboard_screen.dart';
+import 'screens/home_screen.dart';
 import 'dart:async';
 
 
@@ -165,7 +165,7 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
     }
 
     return _isLoggedIn 
-        ? const DashboardScreen() 
+        ? const HomeScreen() 
         : const LoginScreen();
   }
 }

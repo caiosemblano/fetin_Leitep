@@ -8,6 +8,8 @@ import 'relatorios_screen.dart';
 import 'configuracoes_screen.dart';
 import 'notificacoes_screen.dart';
 import 'limpeza_dados_screen.dart';
+import '../services/persistent_auth_service.dart';
+import 'auth/login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -224,9 +226,54 @@ class _HomeScreenState extends State<HomeScreen> {
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Sair'),
-            onTap: () {
-              Navigator.pop(context);
-              // Implementar logout
+            onTap: () async {
+              Navigator.pop(context); // Fechar drawer primeiro
+              
+              // Mostrar confirmação de logout
+              final shouldLogout = await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('Confirmar Logout'),
+                  content: const Text('Deseja realmente sair da sua conta?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      child: const Text('Cancelar'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.red,
+                      ),
+                      child: const Text('Sair'),
+                    ),
+                  ],
+                ),
+              );
+              
+              if (shouldLogout == true && mounted) {
+                try {
+                  // Fazer logout usando o serviço persistente
+                  await PersistentAuthService.logout();
+                  
+                  // Navegar para tela de login e limpar pilha de navegação
+                  if (mounted) {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      (route) => false,
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Erro ao fazer logout: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              }
             },
           ),
         ],
