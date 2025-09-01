@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/backup_service.dart';
 
 class ConfiguracoesScreen extends StatefulWidget {
   const ConfiguracoesScreen({super.key});
@@ -9,6 +10,7 @@ class ConfiguracoesScreen extends StatefulWidget {
 }
 
 class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
+  final BackupService _backupService = BackupService();
   bool _notificacoes = true;
   bool _modoEscuro = false;
   String _unidadeMedida = 'L';
@@ -134,9 +136,16 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
           ),
           ListTile(
             title: const Text('Backup dos Dados'),
-            subtitle: const Text('Fazer backup no Google Drive'),
+            subtitle: const Text('Fazer backup no Firebase'),
             trailing: const Icon(Icons.backup),
             onTap: _fazerBackup,
+          ),
+          
+          ListTile(
+            title: const Text('Exportar Dados'),
+            subtitle: const Text('Compartilhar arquivo de backup'),
+            trailing: const Icon(Icons.share),
+            onTap: _exportarDados,
           ),
           
           ListTile(
@@ -267,17 +276,267 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
     );
   }
 
-  void _fazerBackup() {
-    // Implementar backup
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Backup em desenvolvimento')),
+  void _fazerBackup() async {
+    try {
+      // Mostrar indicador de carregamento
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Text('Criando backup...'),
+            ],
+          ),
+        ),
+      );
+
+      final success = await _backupService.createBackup();
+      
+      if (mounted) {
+        Navigator.of(context).pop(); // Fechar loading
+        
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Backup criado com sucesso!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('❌ Erro ao criar backup'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Fechar loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _restaurarDados() async {
+    try {
+      // Buscar backups disponíveis
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Text('Buscando backups...'),
+            ],
+          ),
+        ),
+      );
+
+      final backups = await _backupService.getAvailableBackups();
+      
+      if (mounted) {
+        Navigator.of(context).pop(); // Fechar loading
+        
+        if (backups.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Nenhum backup encontrado'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return;
+        }
+
+        // Mostrar lista de backups
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Selecionar Backup'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: backups.length,
+                itemBuilder: (context, index) {
+                  final backup = backups[index];
+                  final timestamp = backup['timestamp']?.toDate() ?? DateTime.now();
+                  
+                  return ListTile(
+                    leading: const Icon(Icons.backup),
+                    title: Text('Backup ${index + 1}'),
+                    subtitle: Text(
+                      '${timestamp.day}/${timestamp.month}/${timestamp.year} '
+                      '${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}',
+                    ),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _confirmarRestauracao(backup['id']);
+                    },
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancelar'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Fechar loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _confirmarRestauracao(String backupId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('⚠️ Confirmar Restauração'),
+        content: const Text(
+          'Esta ação irá substituir todos os seus dados atuais pelos dados do backup selecionado. '
+          'Esta operação não pode ser desfeita.\n\n'
+          'Deseja continuar?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _executarRestauracao(backupId);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Restaurar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 
-  void _restaurarDados() {
-    // Implementar restauração
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Restauração em desenvolvimento')),
-    );
+  void _executarRestauracao(String backupId) async {
+    try {
+      // Mostrar indicador de carregamento
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Text('Restaurando dados...'),
+            ],
+          ),
+        ),
+      );
+
+      final success = await _backupService.restoreBackup(backupId);
+      
+      if (mounted) {
+        Navigator.of(context).pop(); // Fechar loading
+        
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Dados restaurados com sucesso!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('❌ Erro ao restaurar dados'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Fechar loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _exportarDados() async {
+    try {
+      // Mostrar indicador de carregamento
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Text('Exportando dados...'),
+            ],
+          ),
+        ),
+      );
+
+      final success = await _backupService.exportToFile();
+      
+      if (mounted) {
+        Navigator.of(context).pop(); // Fechar loading
+        
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Dados exportados e compartilhados!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('❌ Erro ao exportar dados'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Fechar loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }

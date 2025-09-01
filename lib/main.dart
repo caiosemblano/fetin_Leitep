@@ -9,6 +9,7 @@ import 'services/notification_service.dart';
 import 'services/production_analysis_service.dart';
 import 'services/animal_growth_service.dart';
 import 'services/persistent_auth_service.dart';
+import 'services/backup_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/home_screen.dart';
 import 'dart:async';
@@ -78,14 +79,17 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
+  final BackupService _backupService = BackupService();
   bool _isCheckingAuth = true;
   bool _isLoggedIn = false;
   Timer? _logoutTimer;
+  StreamSubscription<User?>? _authStateSubscription;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _setupAuthListener();
     _checkAuthStatus();
     _startLogoutTimer();
   }
@@ -94,7 +98,51 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _logoutTimer?.cancel();
+    _authStateSubscription?.cancel();
     super.dispose();
+  }
+
+  void _setupAuthListener() {
+    // Escutar mudanças no estado de autenticação do Firebase
+    _authStateSubscription = FirebaseAuth.instance.authStateChanges().listen((User? user) {
+      _handleAuthStateChange(user);
+    });
+  }
+
+  Future<void> _handleAuthStateChange(User? user) async {
+    try {
+      if (user == null) {
+        // Usuário deslogado
+        setState(() {
+          _isLoggedIn = false;
+          _isCheckingAuth = false;
+        });
+      } else {
+        // Verificar se deve manter logado
+        final shouldKeep = await PersistentAuthService.shouldKeepLoggedIn();
+        setState(() {
+          _isLoggedIn = shouldKeep;
+          _isCheckingAuth = false;
+        });
+        
+        if (_isLoggedIn) {
+          await PersistentAuthService.updateLastActivity();
+          // Executar backup automático (sem bloquear a UI)
+          _backupService.autoBackup().then((success) {
+            if (success) {
+              print('Backup automático criado com sucesso');
+            }
+          }).catchError((error) {
+            print('Erro no backup automático: $error');
+          });
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isLoggedIn = false;
+        _isCheckingAuth = false;
+      });
+    }
   }
 
   void _startLogoutTimer() {
