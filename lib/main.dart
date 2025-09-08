@@ -10,6 +10,7 @@ import 'services/production_analysis_service.dart';
 import 'services/animal_growth_service.dart';
 import 'services/persistent_auth_service.dart';
 import 'services/backup_service.dart';
+import 'utils/app_logger.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/home_screen.dart';
 import 'dart:async';
@@ -130,10 +131,10 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
           // Executar backup automático (sem bloquear a UI)
           _backupService.autoBackup().then((success) {
             if (success) {
-              print('Backup automático criado com sucesso');
+              AppLogger.info('Backup automático criado com sucesso');
             }
           }).catchError((error) {
-            print('Erro no backup automático: $error');
+            AppLogger.error('Erro no backup automático: $error');
           });
         }
       }

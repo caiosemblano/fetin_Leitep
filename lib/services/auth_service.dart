@@ -1,5 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
+import '../utils/app_logger.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -13,7 +13,7 @@ class AuthService {
       );
       return result.user;
     } catch (e) {
-      debugPrint("Erro no login: $e");
+      AppLogger.error("Erro no login: $e");
       return null;
     }
   }

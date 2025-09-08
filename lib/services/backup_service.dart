@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../utils/app_logger.dart';
 
 class BackupService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -48,7 +49,7 @@ class BackupService {
 
       return true;
     } catch (e) {
-      print('Erro ao criar backup: $e');
+      AppLogger.error('Erro ao criar backup: $e');
       return false;
     }
   }
@@ -94,7 +95,7 @@ class BackupService {
         data['user_settings'] = userDoc.data();
       }
     } catch (e) {
-      print('Erro ao coletar configurações: $e');
+      AppLogger.warning('Erro ao coletar configurações: $e');
     }
 
     return data;
@@ -119,7 +120,7 @@ class BackupService {
         ...doc.data(),
       }).toList();
     } catch (e) {
-      print('Erro ao listar backups: $e');
+      AppLogger.error('Erro ao listar backups: $e');
       return [];
     }
   }
@@ -161,7 +162,7 @@ class BackupService {
 
       return true;
     } catch (e) {
-      print('Erro ao restaurar backup: $e');
+      AppLogger.error('Erro ao restaurar backup: $e');
       return false;
     }
   }
@@ -280,7 +281,7 @@ class BackupService {
 
       return true;
     } catch (e) {
-      print('Erro ao exportar: $e');
+      AppLogger.error('Erro ao exportar: $e');
       return false;
     }
   }
@@ -302,14 +303,14 @@ class BackupService {
           .get();
 
       if (recentBackups.docs.isNotEmpty) {
-        print('Backup recente já existe');
+        AppLogger.info('Backup recente já existe');
         return true;
       }
 
       // Criar novo backup
       return await createBackup();
     } catch (e) {
-      print('Erro no backup automático: $e');
+      AppLogger.error('Erro no backup automático: $e');
       return false;
     }
   }
@@ -336,7 +337,7 @@ class BackupService {
           try {
             await _storage.ref().child('backups/${user.uid}/$fileName').delete();
           } catch (e) {
-            print('Erro ao deletar arquivo: $e');
+            AppLogger.warning('Erro ao deletar arquivo: $e');
           }
           
           // Deletar do Firestore
@@ -344,7 +345,7 @@ class BackupService {
         }
       }
     } catch (e) {
-      print('Erro ao limpar backups antigos: $e');
+      AppLogger.error('Erro ao limpar backups antigos: $e');
     }
   }
 }

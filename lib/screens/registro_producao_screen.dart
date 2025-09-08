@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RegistroProducaoScreen extends StatefulWidget {
   const RegistroProducaoScreen({super.key});
@@ -20,6 +21,7 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
   List<Map<String, dynamic>> _vacas = [];
   String? _selectedVacaId;
   bool _isRefreshing = false;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -53,7 +55,16 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
     }
 
     try {
-      final snapshot = await FirebaseFirestore.instance.collection('vacas').get();
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('Usuário não autenticado');
+      }
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('vacas')
+          .where('userId', isEqualTo: user.uid)
+          .get();
+          
       if (mounted) {
         setState(() {
           _vacas = snapshot.docs.map((doc) {
@@ -122,6 +133,50 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
                   ),
                 ),
               
+              // Aviso quando não há vacas cadastradas
+              if (!_isRefreshing && _vacas.isEmpty)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange[200]!),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(Icons.warning, color: Colors.orange[700], size: 32),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Nenhuma vaca cadastrada',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange[700],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Você precisa cadastrar pelo menos uma vaca antes de fazer registros de produção.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.orange[700]),
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).pop(); // Voltar para tela anterior
+                        },
+                        icon: const Icon(Icons.arrow_back),
+                        label: const Text('Voltar'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange[100],
+                          foregroundColor: Colors.orange[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              
               DropdownButtonFormField<String>(
                 value: _selectedTipo,
                 items: ['Leite', 'Saúde', 'Ciclo']
@@ -143,24 +198,30 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: _selectedVacaId,
-                items: _vacas.map((vaca) {
-                  return DropdownMenuItem<String>(
-                    value: vaca['id'],
-                    child: Text('${vaca['nome']} - ${vaca['raca']}'),
-                  );
-                }).toList(),
-                onChanged: (value) {
+                items: _vacas.isEmpty 
+                    ? [] 
+                    : _vacas.map((vaca) {
+                        return DropdownMenuItem<String>(
+                          value: vaca['id'],
+                          child: Text('${vaca['nome']} - ${vaca['raca']}'),
+                        );
+                      }).toList(),
+                onChanged: _vacas.isEmpty ? null : (value) {
                   setState(() {
                     _selectedVacaId = value;
                     final selectedVaca = _vacas.firstWhere((vaca) => vaca['id'] == value);
                     _vacaController.text = selectedVaca['nome'];
                   });
                 },
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Identificação da Vaca',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  helperText: _vacas.isEmpty ? 'Nenhuma vaca encontrada' : null,
                 ),
                 validator: (value) {
+                  if (_vacas.isEmpty) {
+                    return 'Nenhuma vaca cadastrada. Cadastre uma vaca primeiro.';
+                  }
                   if (value == null || value.isEmpty) {
                     return 'Por favor, selecione uma vaca';
                   }
@@ -171,14 +232,25 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
               if (_selectedTipo == 'Leite')
                 TextFormField(
                   controller: _quantidadeController,
-                  keyboardType: TextInputType.number,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(
                     labelText: 'Quantidade (litros)',
                     border: OutlineInputBorder(),
+                    suffixText: 'L',
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Por favor, informe a quantidade';
+                    }
+                    final quantidade = double.tryParse(value.replaceAll(',', '.'));
+                    if (quantidade == null) {
+                      return 'Por favor, insira um número válido';
+                    }
+                    if (quantidade <= 0) {
+                      return 'A quantidade deve ser maior que zero';
+                    }
+                    if (quantidade > 100) {
+                      return 'Quantidade muito alta. Verifique o valor.';
                     }
                     return null;
                   },
@@ -260,8 +332,24 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _submitForm,
-                  child: const Text('Salvar Registro'),
+                  onPressed: _isSaving ? null : _submitForm,
+                  child: _isSaving 
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Text('Salvando...'),
+                          ],
+                        )
+                      : const Text('Salvar Registro'),
                 ),
               ),
             ],
@@ -300,6 +388,26 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (_isSaving) return; // Evitar duplo clique
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() {
+        _isSaving = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Erro: Usuário não autenticado'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final dataHora = DateTime(
       _selectedDate.year,
       _selectedDate.month,
@@ -310,6 +418,7 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
 
     try {
       final registroData = {
+        'userId': user.uid, // Adicionar userId
         'vacaId': _selectedVacaId!,
         'tipo': _selectedTipo,
         'dataHora': Timestamp.fromDate(dataHora),
@@ -317,7 +426,13 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
       };
 
       if (_selectedTipo == 'Leite') {
-        registroData['quantidade'] = double.parse(_quantidadeController.text);
+        // Tratar vírgula como separador decimal para brasileiro
+        final quantidadeText = _quantidadeController.text.replaceAll(',', '.');
+        final quantidade = double.tryParse(quantidadeText);
+        if (quantidade == null) {
+          throw Exception('Quantidade inválida');
+        }
+        registroData['quantidade'] = quantidade;
       } else {
         registroData['observacao'] = _observacaoController.text;
         if (_selectedTipo == 'Ciclo') {
@@ -330,6 +445,10 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
           .add(registroData);
 
       if (!mounted) return;
+
+      setState(() {
+        _isSaving = false;
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -350,6 +469,11 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
       });
     } catch (e) {
       if (!mounted) return;
+      
+      setState(() {
+        _isSaving = false;
+      });
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Erro ao salvar registro: $e'),
