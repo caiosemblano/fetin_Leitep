@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 import '../services/backup_service.dart';
+import '../services/theme_service.dart';
 
 class ConfiguracoesScreen extends StatefulWidget {
   const ConfiguracoesScreen({super.key});
@@ -26,9 +28,10 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
 
   void _carregarConfiguracoes() async {
     final prefs = await SharedPreferences.getInstance();
+    final themeService = Provider.of<ThemeService>(context, listen: false);
     setState(() {
       _notificacoes = prefs.getBool('notificacoes') ?? true;
-      _modoEscuro = prefs.getBool('modo_escuro') ?? false;
+      _modoEscuro = themeService.isDarkMode;
       _unidadeMedida = prefs.getString('unidade_medida') ?? 'L';
       _moeda = prefs.getString('moeda') ?? 'BRL';
     });
@@ -36,15 +39,16 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
 
   void _salvarConfiguracoes() async {
     final prefs = await SharedPreferences.getInstance();
+    final themeService = Provider.of<ThemeService>(context, listen: false);
     await prefs.setBool('notificacoes', _notificacoes);
-    await prefs.setBool('modo_escuro', _modoEscuro);
+    await themeService.setTheme(_modoEscuro);
     await prefs.setString('unidade_medida', _unidadeMedida);
     await prefs.setString('moeda', _moeda);
-    
+
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Configurações salvas!')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Configurações salvas!')));
     }
   }
 
@@ -64,7 +68,10 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
         children: [
           // Seção: Notificações
           const ListTile(
-            title: Text('Notificações', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            title: Text(
+              'Notificações',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
           ),
           SwitchListTile(
             title: const Text('Ativar Notificações'),
@@ -76,14 +83,37 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
               });
             },
           ),
-          
+
+          const Divider(),
+
+          // Seção: Aparência
+          const ListTile(
+            title: Text(
+              'Aparência',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ),
+          SwitchListTile(
+            title: const Text('Tema Escuro'),
+            subtitle: const Text('Ativar modo noturno'),
+            value: _modoEscuro,
+            onChanged: (bool value) {
+              setState(() {
+                _modoEscuro = value;
+              });
+              _salvarConfiguracoes(); // Salva e aplica imediatamente
+            },
+          ),
+
+          const Divider(),
+
           ListTile(
             title: const Text('Horário 1ª Ordenha'),
             subtitle: Text(_horarioOrdenha1.format(context)),
             trailing: const Icon(Icons.access_time),
             onTap: () => _selecionarHorario(true),
           ),
-          
+
           ListTile(
             title: const Text('Horário 2ª Ordenha'),
             subtitle: Text(_horarioOrdenha2.format(context)),
@@ -93,26 +123,14 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
 
           const Divider(),
 
-          // Seção: Aparência
-          const ListTile(
-            title: Text('Aparência', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ),
-          SwitchListTile(
-            title: const Text('Modo Escuro'),
-            subtitle: const Text('Usar tema escuro na aplicação'),
-            value: _modoEscuro,
-            onChanged: (value) {
-              setState(() {
-                _modoEscuro = value;
-              });
-            },
-          ),
-
           const Divider(),
 
           // Seção: Unidades
           const ListTile(
-            title: Text('Unidades e Medidas', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            title: Text(
+              'Unidades e Medidas',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
           ),
           ListTile(
             title: const Text('Unidade de Volume'),
@@ -120,7 +138,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
             trailing: const Icon(Icons.straighten),
             onTap: _selecionarUnidadeMedida,
           ),
-          
+
           ListTile(
             title: const Text('Moeda'),
             subtitle: Text(_moeda),
@@ -132,7 +150,10 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
 
           // Seção: Dados
           const ListTile(
-            title: Text('Dados', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            title: Text(
+              'Dados',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
           ),
           ListTile(
             title: const Text('Backup dos Dados'),
@@ -140,14 +161,14 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
             trailing: const Icon(Icons.backup),
             onTap: _fazerBackup,
           ),
-          
+
           ListTile(
             title: const Text('Exportar Dados'),
             subtitle: const Text('Compartilhar arquivo de backup'),
             trailing: const Icon(Icons.share),
             onTap: _exportarDados,
           ),
-          
+
           ListTile(
             title: const Text('Restaurar Dados'),
             subtitle: const Text('Restaurar do último backup'),
@@ -159,14 +180,17 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
 
           // Seção: Sobre
           const ListTile(
-            title: Text('Sobre', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            title: Text(
+              'Sobre',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
           ),
           const ListTile(
             title: Text('Versão do App'),
             subtitle: Text('1.0.0'),
             trailing: Icon(Icons.info),
           ),
-          
+
           ListTile(
             title: const Text('Termos de Uso'),
             trailing: const Icon(Icons.description),
@@ -174,7 +198,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
               // Navegar para termos de uso
             },
           ),
-          
+
           ListTile(
             title: const Text('Política de Privacidade'),
             trailing: const Icon(Icons.privacy_tip),
@@ -192,7 +216,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
       context: context,
       initialTime: isPrimeiro ? _horarioOrdenha1 : _horarioOrdenha2,
     );
-    
+
     if (horario != null) {
       setState(() {
         if (isPrimeiro) {
@@ -294,10 +318,10 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
       );
 
       final success = await _backupService.createBackup();
-      
+
       if (mounted) {
         Navigator.of(context).pop(); // Fechar loading
-        
+
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -318,10 +342,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
       if (mounted) {
         Navigator.of(context).pop(); // Fechar loading
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -345,10 +366,10 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
       );
 
       final backups = await _backupService.getAvailableBackups();
-      
+
       if (mounted) {
         Navigator.of(context).pop(); // Fechar loading
-        
+
         if (backups.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -371,8 +392,9 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                 itemCount: backups.length,
                 itemBuilder: (context, index) {
                   final backup = backups[index];
-                  final timestamp = backup['timestamp']?.toDate() ?? DateTime.now();
-                  
+                  final timestamp =
+                      backup['timestamp']?.toDate() ?? DateTime.now();
+
                   return ListTile(
                     leading: const Icon(Icons.backup),
                     title: Text('Backup ${index + 1}'),
@@ -401,10 +423,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
       if (mounted) {
         Navigator.of(context).pop(); // Fechar loading
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -431,7 +450,10 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
               _executarRestauracao(backupId);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Restaurar', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Restaurar',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -456,10 +478,10 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
       );
 
       final success = await _backupService.restoreBackup(backupId);
-      
+
       if (mounted) {
         Navigator.of(context).pop(); // Fechar loading
-        
+
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -480,10 +502,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
       if (mounted) {
         Navigator.of(context).pop(); // Fechar loading
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -507,10 +526,10 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
       );
 
       final success = await _backupService.exportToFile();
-      
+
       if (mounted) {
         Navigator.of(context).pop(); // Fechar loading
-        
+
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -531,10 +550,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
       if (mounted) {
         Navigator.of(context).pop(); // Fechar loading
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red),
         );
       }
     }

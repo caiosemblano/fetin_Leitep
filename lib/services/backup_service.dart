@@ -20,7 +20,7 @@ class BackupService {
 
       // Coletar todos os dados
       final backupData = await _collectAllData(user.uid);
-      
+
       // Criar arquivo de backup
       final backupJson = jsonEncode({
         'timestamp': DateTime.now().toIso8601String(),
@@ -32,20 +32,20 @@ class BackupService {
       // Salvar no Firebase Storage
       final fileName = 'backup_${DateTime.now().millisecondsSinceEpoch}.json';
       final ref = _storage.ref().child('backups/${user.uid}/$fileName');
-      
+
       await ref.putString(backupJson);
-      
+
       // Salvar referência do backup no Firestore
       await _firestore
-          .collection('users')
+          .collection('usuarios')
           .doc(user.uid)
           .collection('backups')
           .add({
-        'fileName': fileName,
-        'timestamp': FieldValue.serverTimestamp(),
-        'size': backupJson.length,
-        'status': 'completed',
-      });
+            'fileName': fileName,
+            'timestamp': FieldValue.serverTimestamp(),
+            'size': backupJson.length,
+            'status': 'completed',
+          });
 
       return true;
     } catch (e) {
@@ -63,9 +63,16 @@ class BackupService {
         .collection('vacas')
         .where('userId', isEqualTo: userId)
         .get();
-    data['vacas'] = vacasSnapshot.docs.map((doc) => {
-      'id': doc.id,
-      ...doc.data(),
+    data['vacas'] = vacasSnapshot.docs.map((doc) {
+      final data = doc.data();
+      // Converter Timestamps para strings ISO 8601
+      final convertedData = Map<String, dynamic>.from(data);
+      convertedData.forEach((key, value) {
+        if (value is Timestamp) {
+          convertedData[key] = value.toDate().toIso8601String();
+        }
+      });
+      return {'id': doc.id, ...convertedData};
     }).toList();
 
     // Coletar registros de produção
@@ -73,9 +80,16 @@ class BackupService {
         .collection('registros_producao')
         .where('userId', isEqualTo: userId)
         .get();
-    data['registros_producao'] = producaoSnapshot.docs.map((doc) => {
-      'id': doc.id,
-      ...doc.data(),
+    data['registros_producao'] = producaoSnapshot.docs.map((doc) {
+      final data = doc.data();
+      // Converter Timestamps para strings ISO 8601
+      final convertedData = Map<String, dynamic>.from(data);
+      convertedData.forEach((key, value) {
+        if (value is Timestamp) {
+          convertedData[key] = value.toDate().toIso8601String();
+        }
+      });
+      return {'id': doc.id, ...convertedData};
     }).toList();
 
     // Coletar atividades
@@ -83,14 +97,21 @@ class BackupService {
         .collection('atividades')
         .where('userId', isEqualTo: userId)
         .get();
-    data['atividades'] = atividadesSnapshot.docs.map((doc) => {
-      'id': doc.id,
-      ...doc.data(),
+    data['atividades'] = atividadesSnapshot.docs.map((doc) {
+      final data = doc.data();
+      // Converter Timestamps para strings ISO 8601
+      final convertedData = Map<String, dynamic>.from(data);
+      convertedData.forEach((key, value) {
+        if (value is Timestamp) {
+          convertedData[key] = value.toDate().toIso8601String();
+        }
+      });
+      return {'id': doc.id, ...convertedData};
     }).toList();
 
     // Coletar configurações do usuário
     try {
-      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final userDoc = await _firestore.collection('usuarios').doc(userId).get();
       if (userDoc.exists) {
         data['user_settings'] = userDoc.data();
       }
@@ -108,17 +129,16 @@ class BackupService {
       if (user == null) return [];
 
       final backupsSnapshot = await _firestore
-          .collection('users')
+          .collection('usuarios')
           .doc(user.uid)
           .collection('backups')
           .orderBy('timestamp', descending: true)
           .limit(10)
           .get();
 
-      return backupsSnapshot.docs.map((doc) => {
-        'id': doc.id,
-        ...doc.data(),
-      }).toList();
+      return backupsSnapshot.docs
+          .map((doc) => {'id': doc.id, ...doc.data()})
+          .toList();
     } catch (e) {
       AppLogger.error('Erro ao listar backups: $e');
       return [];
@@ -133,7 +153,7 @@ class BackupService {
 
       // Buscar informações do backup
       final backupDoc = await _firestore
-          .collection('users')
+          .collection('usuarios')
           .doc(user.uid)
           .collection('backups')
           .doc(backupId)
@@ -144,11 +164,11 @@ class BackupService {
       }
 
       final fileName = backupDoc.data()!['fileName'] as String;
-      
+
       // Baixar arquivo do Firebase Storage
       final ref = _storage.ref().child('backups/${user.uid}/$fileName');
       final backupData = await ref.getData();
-      
+
       if (backupData == null) {
         throw Exception('Erro ao baixar backup');
       }
@@ -202,7 +222,10 @@ class BackupService {
   }
 
   // Restaurar dados do usuário
-  Future<void> _restoreUserData(String userId, Map<String, dynamic> data) async {
+  Future<void> _restoreUserData(
+    String userId,
+    Map<String, dynamic> data,
+  ) async {
     final batch = _firestore.batch();
 
     // Restaurar vacas
@@ -211,7 +234,7 @@ class BackupService {
         final docData = Map<String, dynamic>.from(vaca);
         docData.remove('id'); // Remove o ID antigo
         docData['userId'] = userId; // Garante o userId correto
-        
+
         final ref = _firestore.collection('vacas').doc();
         batch.set(ref, docData);
       }
@@ -223,7 +246,19 @@ class BackupService {
         final docData = Map<String, dynamic>.from(registro);
         docData.remove('id');
         docData['userId'] = userId;
-        
+
+        // Converter strings ISO 8601 de volta para Timestamp
+        docData.forEach((key, value) {
+          if (value is String && value.contains('T')) {
+            try {
+              final date = DateTime.parse(value);
+              docData[key] = Timestamp.fromDate(date);
+            } catch (e) {
+              // Se não for uma data válida, manter o valor original
+            }
+          }
+        });
+
         final ref = _firestore.collection('registros_producao').doc();
         batch.set(ref, docData);
       }
@@ -235,7 +270,19 @@ class BackupService {
         final docData = Map<String, dynamic>.from(atividade);
         docData.remove('id');
         docData['userId'] = userId;
-        
+
+        // Converter strings ISO 8601 de volta para Timestamp
+        docData.forEach((key, value) {
+          if (value is String && value.contains('T')) {
+            try {
+              final date = DateTime.parse(value);
+              docData[key] = Timestamp.fromDate(date);
+            } catch (e) {
+              // Se não for uma data válida, manter o valor original
+            }
+          }
+        });
+
         final ref = _firestore.collection('atividades').doc();
         batch.set(ref, docData);
       }
@@ -243,9 +290,12 @@ class BackupService {
 
     // Restaurar configurações do usuário
     if (data['user_settings'] != null) {
-      final userRef = _firestore.collection('users').doc(userId);
-      batch.set(userRef, data['user_settings'] as Map<String, dynamic>, 
-               SetOptions(merge: true));
+      final userRef = _firestore.collection('usuarios').doc(userId);
+      batch.set(
+        userRef,
+        data['user_settings'] as Map<String, dynamic>,
+        SetOptions(merge: true),
+      );
     }
 
     await batch.commit();
@@ -259,7 +309,7 @@ class BackupService {
 
       // Coletar dados
       final backupData = await _collectAllData(user.uid);
-      
+
       // Criar JSON
       final exportJson = jsonEncode({
         'timestamp': DateTime.now().toIso8601String(),
@@ -270,14 +320,16 @@ class BackupService {
 
       // Salvar arquivo local
       final directory = await getApplicationDocumentsDirectory();
-      final fileName = 'leite_backup_${DateTime.now().millisecondsSinceEpoch}.json';
+      final fileName =
+          'leite_backup_${DateTime.now().millisecondsSinceEpoch}.json';
       final file = File('${directory.path}/$fileName');
-      
+
       await file.writeAsString(exportJson);
 
       // Compartilhar arquivo
-      await Share.shareXFiles([XFile(file.path)], 
-          text: 'Backup dos dados do Leite+');
+      await Share.shareXFiles([
+        XFile(file.path),
+      ], text: 'Backup dos dados do Leite+');
 
       return true;
     } catch (e) {
@@ -294,9 +346,9 @@ class BackupService {
 
       // Verificar se já existe backup recente (últimas 24h)
       final oneDayAgo = DateTime.now().subtract(const Duration(days: 1));
-      
+
       final recentBackups = await _firestore
-          .collection('users')
+          .collection('usuarios')
           .doc(user.uid)
           .collection('backups')
           .where('timestamp', isGreaterThan: Timestamp.fromDate(oneDayAgo))
@@ -322,7 +374,7 @@ class BackupService {
       if (user == null) return;
 
       final backupsSnapshot = await _firestore
-          .collection('users')
+          .collection('usuarios')
           .doc(user.uid)
           .collection('backups')
           .orderBy('timestamp', descending: true)
@@ -330,16 +382,19 @@ class BackupService {
 
       if (backupsSnapshot.docs.length > 5) {
         final toDelete = backupsSnapshot.docs.skip(5);
-        
+
         for (final doc in toDelete) {
           // Deletar do Storage
           final fileName = doc.data()['fileName'] as String;
           try {
-            await _storage.ref().child('backups/${user.uid}/$fileName').delete();
+            await _storage
+                .ref()
+                .child('backups/${user.uid}/$fileName')
+                .delete();
           } catch (e) {
             AppLogger.warning('Erro ao deletar arquivo: $e');
           }
-          
+
           // Deletar do Firestore
           await doc.reference.delete();
         }

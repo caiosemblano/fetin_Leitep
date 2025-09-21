@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dashboard_screen.dart';
 import 'atividades_screen.dart';
 import 'vacas_screen.dart';
+import 'admin_planos_screen.dart';
 import 'registro_producao_screen.dart';
 import 'saude_screen.dart';
 import 'relatorios_screen.dart';
@@ -9,6 +10,7 @@ import 'configuracoes_screen.dart';
 import 'notificacoes_screen.dart';
 import 'limpeza_dados_screen.dart';
 import '../services/persistent_auth_service.dart';
+import 'planos_screen.dart';
 import 'auth/login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -21,11 +23,13 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _screens = [
+  List<Widget> get _screens => [
     const DashboardScreen(),
     const AtividadesScreen(),
     const VacasScreen(),
-    const RegistroProducaoScreen(),
+    RegistroProducaoScreen(
+      onNavigateToVacas: () => _onItemTapped(2), // Índice 2 é a tela de Vacas
+    ),
   ];
 
   void _onItemTapped(int index) {
@@ -77,47 +81,26 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         drawer: _buildDrawer(),
-        body: IndexedStack(
-          index: _selectedIndex,
-          children: _screens,
-        ),
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            boxShadow: [
-              BoxShadow(
-                color: Color.fromRGBO(0, 0, 0, 0.1),
-                blurRadius: 10,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-          child: BottomNavigationBar(
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.dashboard),
-                label: 'Dashboard',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.calendar_today),
-                label: 'Atividades',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.pets),
-                label: 'Vacas',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.assignment),
-                label: 'Registros',
-              ),
-            ],
-            currentIndex: _selectedIndex,
-            selectedItemColor: Colors.blue[800],
-            unselectedItemColor: Colors.grey[600],
-            backgroundColor: Colors.white,
-            elevation: 10,
-            type: BottomNavigationBarType.fixed,
-            onTap: _onItemTapped,
-          ),
+        body: IndexedStack(index: _selectedIndex, children: _screens),
+        bottomNavigationBar: BottomNavigationBar(
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard),
+              label: 'Dashboard',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.calendar_today),
+              label: 'Atividades',
+            ),
+            BottomNavigationBarItem(icon: Icon(Icons.pets), label: 'Vacas'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.assignment),
+              label: 'Registros',
+            ),
+          ],
+          currentIndex: _selectedIndex,
+          type: BottomNavigationBarType.fixed,
+          onTap: _onItemTapped,
         ),
       ),
     );
@@ -129,17 +112,11 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: EdgeInsets.zero,
         children: [
           const DrawerHeader(
-            decoration: BoxDecoration(
-              color: Colors.blue,
-            ),
+            decoration: BoxDecoration(color: Colors.blue),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.agriculture,
-                  color: Colors.white,
-                  size: 40,
-                ),
+                Icon(Icons.agriculture, color: Colors.white, size: 40),
                 SizedBox(height: 16),
                 Text(
                   'Leite+',
@@ -151,10 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 Text(
                   'Gestão da sua fazenda',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ],
             ),
@@ -177,7 +151,20 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const RelatoriosScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const RelatoriosScreen(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.workspace_premium_outlined),
+            title: const Text('Meu Plano'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PlanosScreen()),
               );
             },
           ),
@@ -189,7 +176,9 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const NotificacoesScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const NotificacoesScreen(),
+                ),
               );
             },
           ),
@@ -200,11 +189,26 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const LimpezaDadosScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const LimpezaDadosScreen(),
+                ),
               );
             },
           ),
           const Divider(),
+          ListTile(
+            leading: const Icon(Icons.admin_panel_settings),
+            title: const Text('Admin - Planos'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminPlanosScreen(),
+                ),
+              );
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.settings),
             title: const Text('Configurações'),
@@ -212,7 +216,9 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const ConfiguracoesScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const ConfiguracoesScreen(),
+                ),
               );
             },
           ),
@@ -229,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
             title: const Text('Sair'),
             onTap: () async {
               Navigator.pop(context); // Fechar drawer primeiro
-              
+
               // Mostrar confirmação de logout
               final shouldLogout = await showDialog<bool>(
                 context: context,
@@ -243,24 +249,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     TextButton(
                       onPressed: () => Navigator.of(dialogContext).pop(true),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.red,
-                      ),
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
                       child: const Text('Sair'),
                     ),
                   ],
                 ),
               );
-              
+
               if (shouldLogout == true && mounted) {
                 try {
                   // Fazer logout usando o serviço persistente
                   await PersistentAuthService.logout();
-                  
+
                   // Navegar para tela de login e limpar pilha de navegação
                   if (mounted) {
                     Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const LoginScreen(),
+                      ),
                       (route) => false,
                     );
                   }

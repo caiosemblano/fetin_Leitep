@@ -3,13 +3,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class RegistroProducaoScreen extends StatefulWidget {
-  const RegistroProducaoScreen({super.key});
+  final VoidCallback? onNavigateToVacas;
+
+  const RegistroProducaoScreen({super.key, this.onNavigateToVacas});
 
   @override
   State<RegistroProducaoScreen> createState() => _RegistroProducaoScreenState();
 }
 
-class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with WidgetsBindingObserver {
+class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
+    with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   final _quantidadeController = TextEditingController();
   final _vacaController = TextEditingController();
@@ -60,15 +63,20 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
         throw Exception('Usuário não autenticado');
       }
 
+      print('Carregando vacas para o usuário: ${user.uid}');
       final snapshot = await FirebaseFirestore.instance
           .collection('vacas')
           .where('userId', isEqualTo: user.uid)
           .get();
-          
+
+      print('Número de vacas encontradas: ${snapshot.docs.length}');
+
       if (mounted) {
         setState(() {
           _vacas = snapshot.docs.map((doc) {
-            return {'id': doc.id, ...doc.data()};
+            final data = {'id': doc.id, ...doc.data()};
+            print('Vaca carregada: ${data['nome']} (ID: ${data['id']})');
+            return data;
           }).toList();
           _isRefreshing = false;
         });
@@ -78,9 +86,9 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
         setState(() {
           _isRefreshing = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar vacas: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro ao carregar vacas: $e')));
       }
     }
   }
@@ -92,7 +100,7 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
         title: const Text('Registro de Produção'),
         actions: [
           IconButton(
-            icon: _isRefreshing 
+            icon: _isRefreshing
                 ? const SizedBox(
                     width: 20,
                     height: 20,
@@ -132,7 +140,7 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
                     ],
                   ),
                 ),
-              
+
               // Aviso quando não há vacas cadastradas
               if (!_isRefreshing && _vacas.isEmpty)
                 Container(
@@ -144,8 +152,37 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
                     border: Border.all(color: Colors.orange[200]!),
                   ),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.warning, color: Colors.orange[700], size: 32),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Nenhuma vaca cadastrada',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Você precisa cadastrar pelo menos uma vaca antes de fazer registros de produção.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          // Navega para a tela de cadastro de vacas (índice 2 no bottom navigation)
+                          if (widget.onNavigateToVacas != null) {
+                            widget.onNavigateToVacas!();
+                          }
+                        },
+                        icon: const Icon(Icons.add_circle_outline),
+                        label: const Text('Cadastrar Nova Vaca'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange[700],
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         'Nenhuma vaca cadastrada',
@@ -164,7 +201,9 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
                       const SizedBox(height: 12),
                       ElevatedButton.icon(
                         onPressed: () {
-                          Navigator.of(context).pop(); // Voltar para tela anterior
+                          Navigator.of(
+                            context,
+                          ).pop(); // Voltar para tela anterior
                         },
                         icon: const Icon(Icons.arrow_back),
                         label: const Text('Voltar'),
@@ -176,7 +215,7 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
                     ],
                   ),
                 ),
-              
+
               DropdownButtonFormField<String>(
                 value: _selectedTipo,
                 items: ['Leite', 'Saúde', 'Ciclo']
@@ -198,21 +237,25 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: _selectedVacaId,
-                items: _vacas.isEmpty 
-                    ? [] 
+                items: _vacas.isEmpty
+                    ? []
                     : _vacas.map((vaca) {
                         return DropdownMenuItem<String>(
                           value: vaca['id'],
                           child: Text('${vaca['nome']} - ${vaca['raca']}'),
                         );
                       }).toList(),
-                onChanged: _vacas.isEmpty ? null : (value) {
-                  setState(() {
-                    _selectedVacaId = value;
-                    final selectedVaca = _vacas.firstWhere((vaca) => vaca['id'] == value);
-                    _vacaController.text = selectedVaca['nome'];
-                  });
-                },
+                onChanged: _vacas.isEmpty
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _selectedVacaId = value;
+                          final selectedVaca = _vacas.firstWhere(
+                            (vaca) => vaca['id'] == value,
+                          );
+                          _vacaController.text = selectedVaca['nome'];
+                        });
+                      },
                 decoration: InputDecoration(
                   labelText: 'Identificação da Vaca',
                   border: const OutlineInputBorder(),
@@ -232,7 +275,9 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
               if (_selectedTipo == 'Leite')
                 TextFormField(
                   controller: _quantidadeController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(
                     labelText: 'Quantidade (litros)',
                     border: OutlineInputBorder(),
@@ -242,7 +287,9 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
                     if (value == null || value.isEmpty) {
                       return 'Por favor, informe a quantidade';
                     }
-                    final quantidade = double.tryParse(value.replaceAll(',', '.'));
+                    final quantidade = double.tryParse(
+                      value.replaceAll(',', '.'),
+                    );
                     if (quantidade == null) {
                       return 'Por favor, insira um número válido';
                     }
@@ -276,16 +323,21 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
               if (_selectedTipo == 'Ciclo')
                 DropdownButtonFormField<String>(
                   value: _selectedPeriodoCiclo,
-                  items: [
-                    'Cio',
-                    'Cobertura',
-                    'Prenhez Confirmada',
-                    'Seca',
-                    'Parto'
-                  ]
-                      .map((periodo) => DropdownMenuItem(
-                          value: periodo, child: Text(periodo)))
-                      .toList(),
+                  items:
+                      [
+                            'Cio',
+                            'Cobertura',
+                            'Prenhez Confirmada',
+                            'Seca',
+                            'Parto',
+                          ]
+                          .map(
+                            (periodo) => DropdownMenuItem(
+                              value: periodo,
+                              child: Text(periodo),
+                            ),
+                          )
+                          .toList(),
                   onChanged: (value) {
                     setState(() {
                       _selectedPeriodoCiclo = value!;
@@ -333,7 +385,7 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _isSaving ? null : _submitForm,
-                  child: _isSaving 
+                  child: _isSaving
                       ? const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -342,7 +394,9 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                               ),
                             ),
                             SizedBox(width: 8),
@@ -469,11 +523,11 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
       });
     } catch (e) {
       if (!mounted) return;
-      
+
       setState(() {
         _isSaving = false;
       });
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Erro ao salvar registro: $e'),

@@ -10,32 +10,36 @@ import 'services/production_analysis_service.dart';
 import 'services/animal_growth_service.dart';
 import 'services/persistent_auth_service.dart';
 import 'services/backup_service.dart';
+import 'services/user_service.dart';
+import 'services/theme_service.dart';
 import 'utils/app_logger.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/home_screen.dart';
 import 'dart:async';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   // Inicializar notificações
   await NotificationService.initialize();
   await NotificationService.requestPermissions();
-  
+
   // Agendar análise automática de produção
   await ProductionAnalysisService.scheduleAutomaticAnalysis();
-  
+
   // Agendar verificação automática de crescimento de animais
   await AnimalGrowthService.scheduleGrowthCheck();
-  
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AtividadesRepository()),
+        ChangeNotifierProvider(create: (_) => ThemeService()),
+        StreamProvider<UserSubscription>(
+          create: (_) => UserService().getSubscriptionStream(),
+          initialData: UserSubscription(),
+        ),
       ],
       child: const MyApp(),
     ),
@@ -47,26 +51,13 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeService = Provider.of<ThemeService>(context);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Leite+',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-          brightness: Brightness.light,
-          primary: Colors.blue[800], // Cor primária mais escura
-          secondary: Colors.blue[600],
-          surface: Colors.white,
-          // background: Colors.white, // Removido por ser deprecated
-          ),
-          bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-          backgroundColor: Colors.white,
-          selectedItemColor: Colors.blue, // Cor para item selecionado
-          unselectedItemColor: Colors.grey, // Cor para itens não selecionados
-          elevation: 10,
-        ),
-      ),
+      theme: themeService.lightTheme,
+      darkTheme: themeService.darkTheme,
+      themeMode: themeService.isDarkMode ? ThemeMode.dark : ThemeMode.light,
       home: const AuthWrapper(), // Widget que verifica autenticação
     );
   }
@@ -105,7 +96,9 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
 
   void _setupAuthListener() {
     // Escutar mudanças no estado de autenticação do Firebase
-    _authStateSubscription = FirebaseAuth.instance.authStateChanges().listen((User? user) {
+    _authStateSubscription = FirebaseAuth.instance.authStateChanges().listen((
+      User? user,
+    ) {
       _handleAuthStateChange(user);
     });
   }
@@ -125,17 +118,20 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
           _isLoggedIn = shouldKeep;
           _isCheckingAuth = false;
         });
-        
+
         if (_isLoggedIn) {
           await PersistentAuthService.updateLastActivity();
           // Executar backup automático (sem bloquear a UI)
-          _backupService.autoBackup().then((success) {
-            if (success) {
-              AppLogger.info('Backup automático criado com sucesso');
-            }
-          }).catchError((error) {
-            AppLogger.error('Erro no backup automático: $error');
-          });
+          _backupService
+              .autoBackup()
+              .then((success) {
+                if (success) {
+                  AppLogger.info('Backup automático criado com sucesso');
+                }
+              })
+              .catchError((error) {
+                AppLogger.error('Erro no backup automático: $error');
+              });
         }
       }
     } catch (e) {
@@ -157,7 +153,7 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
+
     switch (state) {
       case AppLifecycleState.resumed:
         // App voltou do background - apenas atualizar atividade
@@ -178,12 +174,12 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
     try {
       final shouldKeep = await PersistentAuthService.shouldKeepLoggedIn();
       final currentUser = FirebaseAuth.instance.currentUser;
-      
+
       setState(() {
         _isLoggedIn = shouldKeep && currentUser != null;
         _isCheckingAuth = false;
       });
-      
+
       if (_isLoggedIn) {
         // Atualizar última atividade
         await PersistentAuthService.updateLastActivity();
@@ -213,8 +209,6 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
       );
     }
 
-    return _isLoggedIn 
-        ? const HomeScreen() 
-        : const LoginScreen();
+    return _isLoggedIn ? const HomeScreen() : const LoginScreen();
   }
 }

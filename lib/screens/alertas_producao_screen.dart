@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../services/production_analysis_service.dart';
 import '../utils/app_logger.dart';
+import '../services/user_service.dart';
 import 'configurar_alertas_screen.dart';
 
 class AlertasProducaoScreen extends StatefulWidget {
@@ -39,7 +41,7 @@ class _AlertasProducaoScreenState extends State<AlertasProducaoScreen> {
     try {
       await ProductionAnalysisService.analyzeAllCowsProduction();
       await _loadAlertas(); // Recarregar após análise
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -51,7 +53,7 @@ class _AlertasProducaoScreenState extends State<AlertasProducaoScreen> {
     } catch (e) {
       AppLogger.error('Erro ao executar análise', e);
       setState(() => _isLoading = false);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -74,24 +76,29 @@ class _AlertasProducaoScreenState extends State<AlertasProducaoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final subscription = Provider.of<UserSubscription>(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Alertas de Produção'),
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ConfigurarAlertasScreen(),
-                ),
-              );
-            },
-            tooltip: 'Configurar Alertas Individuais',
-          ),
+          if (subscription.hasPremiumAccess)
+            IconButton(
+              icon: const Icon(Icons.settings),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ConfigurarAlertasScreen(),
+                  ),
+                );
+              },
+              tooltip: 'Configurar Alertas Individuais (Premium)',
+            )
+          else
+            _buildUpgradeIcon(),
           IconButton(
             icon: const Icon(Icons.analytics),
             onPressed: _isLoading ? null : _runAnalysis,
@@ -107,8 +114,25 @@ class _AlertasProducaoScreenState extends State<AlertasProducaoScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _alertas.isEmpty
-              ? _buildEmptyState()
-              : _buildAlertsList(),
+          ? _buildEmptyState()
+          : _buildAlertsList(),
+    );
+  }
+
+  Widget _buildUpgradeIcon() {
+    return IconButton(
+      icon: const Icon(Icons.workspace_premium_outlined),
+      tooltip: 'Faça upgrade para configurar alertas individuais',
+      onPressed: () {
+        // TODO: Navegar para a tela de planos/assinaturas
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Esta é uma funcionalidade Premium!'),
+            backgroundColor: Colors.purple,
+          ),
+        );
+        // Navigator.push(context, MaterialPageRoute(builder: (_) => PlanosScreen()));
+      },
     );
   }
 
@@ -117,11 +141,7 @@ class _AlertasProducaoScreenState extends State<AlertasProducaoScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.check_circle_outline,
-            size: 80,
-            color: Colors.green[300],
-          ),
+          Icon(Icons.check_circle_outline, size: 80, color: Colors.green[300]),
           const SizedBox(height: 16),
           Text(
             'Nenhum alerta de produção',
@@ -130,9 +150,9 @@ class _AlertasProducaoScreenState extends State<AlertasProducaoScreen> {
           const SizedBox(height: 8),
           Text(
             'Todas as vacas estão com produção normal',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.grey[600],
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
@@ -188,7 +208,7 @@ class _AlertasProducaoScreenState extends State<AlertasProducaoScreen> {
     final producaoRecente = alerta['producaoRecente']?.toDouble() ?? 0.0;
     final producaoAnterior = alerta['producaoAnterior']?.toDouble() ?? 0.0;
     final diasAnalisados = alerta['diasAnalisados'] ?? 0;
-    
+
     // Converter timestamp se necessário
     DateTime? dataAlerta;
     if (alerta['dataAlerta'] != null) {
@@ -209,11 +229,7 @@ class _AlertasProducaoScreenState extends State<AlertasProducaoScreen> {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.trending_down,
-                  color: Colors.red[700],
-                  size: 28,
-                ),
+                Icon(Icons.trending_down, color: Colors.red[700], size: 28),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -274,10 +290,7 @@ class _AlertasProducaoScreenState extends State<AlertasProducaoScreen> {
                     children: [
                       Text(
                         'Análise de $diasAnalisados dias',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
                       if (dataAlerta != null)
                         Text(
@@ -310,7 +323,8 @@ class _AlertasProducaoScreenState extends State<AlertasProducaoScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => _navigateToProducaoHistory(alerta['vacaId']),
+                    onPressed: () =>
+                        _navigateToProducaoHistory(alerta['vacaId']),
                     icon: const Icon(Icons.history, size: 16),
                     label: const Text('Histórico'),
                     style: OutlinedButton.styleFrom(
@@ -329,13 +343,7 @@ class _AlertasProducaoScreenState extends State<AlertasProducaoScreen> {
   Widget _buildMetricItem(String label, String value, Color color) {
     return Column(
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
         const SizedBox(height: 2),
         Text(
           value,
@@ -352,7 +360,7 @@ class _AlertasProducaoScreenState extends State<AlertasProducaoScreen> {
   void _navigateToVacaDetails(String vacaId) {
     // Navegar para tela de detalhes da vaca
     AppLogger.info('Navegando para detalhes da vaca: $vacaId');
-    
+
     // Mostrar diálogo com informações da vaca por enquanto
     showDialog(
       context: context,
@@ -393,7 +401,7 @@ class _AlertasProducaoScreenState extends State<AlertasProducaoScreen> {
   void _navigateToProducaoHistory(String vacaId) {
     // Navegar para histórico de produção
     AppLogger.info('Navegando para histórico de produção da vaca: $vacaId');
-    
+
     // Mostrar diálogo com preview do histórico por enquanto
     showDialog(
       context: context,

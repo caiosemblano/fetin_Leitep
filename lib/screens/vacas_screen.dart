@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/animal_growth_service.dart';
 
 class VacasScreen extends StatefulWidget {
@@ -54,10 +55,11 @@ class _VacasScreenState extends State<VacasScreen> {
             vaca['raca'].toLowerCase().contains(query);
         final matchesFilter =
             _selectedFilter == 'Todas' || vaca['raca'] == _selectedFilter;
-        final matchesTipo = _selectedTipoFilter == 'Todos' || 
+        final matchesTipo =
+            _selectedTipoFilter == 'Todos' ||
             (vaca['tipo'] ?? 'vaca') == _selectedTipoFilter;
-        final matchesLactacao = !_showOnlyLactantes || 
-            (vaca['lactacao'] ?? false);
+        final matchesLactacao =
+            !_showOnlyLactantes || (vaca['lactacao'] ?? false);
 
         return matchesSearch && matchesFilter && matchesTipo && matchesLactacao;
       }).toList();
@@ -136,7 +138,8 @@ class _VacasScreenState extends State<VacasScreen> {
                   value: _selectedFilter,
                   items: ['Todas', 'Holandesa', 'Jersey', 'Gir']
                       .map(
-                        (raca) => DropdownMenuItem(value: raca, child: Text(raca)),
+                        (raca) =>
+                            DropdownMenuItem(value: raca, child: Text(raca)),
                       )
                       .toList(),
                   onChanged: (value) {
@@ -157,7 +160,10 @@ class _VacasScreenState extends State<VacasScreen> {
                   value: _selectedTipoFilter,
                   items: ['Todos', 'vaca', 'bezerro', 'bezerra', 'novilha']
                       .map(
-                        (tipo) => DropdownMenuItem(value: tipo, child: Text(_formatTipo(tipo))),
+                        (tipo) => DropdownMenuItem(
+                          value: tipo,
+                          child: Text(_formatTipo(tipo)),
+                        ),
                       )
                       .toList(),
                   onChanged: (value) {
@@ -196,28 +202,31 @@ class _VacasScreenState extends State<VacasScreen> {
 
   String _formatTipo(String tipo) {
     switch (tipo) {
-      case 'Todos': return 'Todos';
-      case 'vaca': return 'Vaca Adulta';
-      case 'bezerro': return 'Bezerro';
-      case 'bezerra': return 'Bezerra';
-      case 'novilha': return 'Novilha';
-      default: return tipo;
+      case 'Todos':
+        return 'Todos';
+      case 'vaca':
+        return 'Vaca Adulta';
+      case 'bezerro':
+        return 'Bezerro';
+      case 'bezerra':
+        return 'Bezerra';
+      case 'novilha':
+        return 'Novilha';
+      default:
+        return tipo;
     }
   }
 
   Widget _buildVacaCard(Map<String, dynamic> vaca) {
     final tipo = vaca['tipo'] ?? 'vaca';
     final isYoung = tipo == 'bezerro' || tipo == 'bezerra' || tipo == 'novilha';
-    
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: _getTypeColor(tipo),
-          child: Icon(
-            _getTypeIcon(tipo),
-            color: Colors.white,
-          ),
+          child: Icon(_getTypeIcon(tipo), color: Colors.white),
         ),
         title: Row(
           children: [
@@ -448,12 +457,18 @@ class _VacasScreenState extends State<VacasScreen> {
     required String peso,
     required bool lactacao,
   }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw Exception('Usuário não autenticado');
+    }
+
     final vacaData = {
       'nome': nome,
       'raca': raca,
       'idade': idade,
       'peso': peso,
       'lactacao': lactacao,
+      'userId': user.uid,
     };
 
     final messenger = ScaffoldMessenger.of(context);
@@ -463,7 +478,7 @@ class _VacasScreenState extends State<VacasScreen> {
       await FirebaseFirestore.instance
           .collection('vacas')
           .doc(_editingId)
-          .set(vacaData);
+          .set(vacaData, SetOptions(merge: true));
       if (!mounted) return;
       messenger.showSnackBar(
         const SnackBar(content: Text('Vaca atualizada com sucesso!')),
@@ -482,15 +497,35 @@ class _VacasScreenState extends State<VacasScreen> {
   }
 
   Future<void> _loadVacas() async {
-    final snapshot = await FirebaseFirestore.instance.collection('vacas').get();
-    setState(() {
-      _vacas.clear();
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        _vacas.add({'id': doc.id, ...data});
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('Usuário não autenticado');
       }
-      _filterVacas();
-    });
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('vacas')
+          .where('userId', isEqualTo: user.uid)
+          .get();
+
+      print('Carregando vacas para o usuário: ${user.uid}');
+      print('Número de vacas encontradas: ${snapshot.docs.length}');
+
+      setState(() {
+        _vacas.clear();
+        for (var doc in snapshot.docs) {
+          final data = {'id': doc.id, ...doc.data()};
+          print('Vaca carregada: ${data['nome']} (ID: ${data['id']})');
+          _vacas.add(data);
+        }
+        _filterVacas();
+      });
+    } catch (e) {
+      print('Erro ao carregar vacas: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao carregar vacas: $e')));
+    }
   }
 
   void _deleteVaca(Map<String, dynamic> vaca) {
@@ -506,7 +541,10 @@ class _VacasScreenState extends State<VacasScreen> {
             const SizedBox(height: 8),
             const Text(
               '⚠️ Isso também removerá:',
-              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.orange,
+              ),
             ),
             const Text('• Todos os registros de produção'),
             const Text('• Histórico de atividades relacionadas'),
@@ -522,56 +560,58 @@ class _VacasScreenState extends State<VacasScreen> {
             onPressed: () async {
               final navigator = Navigator.of(dialogContext);
               final messenger = ScaffoldMessenger.of(context);
-              
+
               try {
                 // Mostrar loading
                 showDialog(
                   context: dialogContext,
                   barrierDismissible: false,
-                  builder: (_) => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
+                  builder: (_) =>
+                      const Center(child: CircularProgressIndicator()),
                 );
-                
+
                 // 1. Excluir registros de produção
                 final producaoSnapshot = await FirebaseFirestore.instance
                     .collection('registros_producao')
                     .where('vacaId', isEqualTo: vaca['id'])
                     .get();
-                
+
                 final batch = FirebaseFirestore.instance.batch();
-                
+
                 for (var doc in producaoSnapshot.docs) {
                   batch.delete(doc.reference);
                 }
-                
+
                 // 2. Excluir a vaca
                 batch.delete(
-                  FirebaseFirestore.instance.collection('vacas').doc(vaca['id'])
+                  FirebaseFirestore.instance
+                      .collection('vacas')
+                      .doc(vaca['id']),
                 );
-                
+
                 // Executar batch
                 await batch.commit();
-                
+
                 // Fechar loading
                 navigator.pop();
                 // Fechar dialog principal
                 navigator.pop();
-                
+
                 await _loadVacas();
-                
+
                 messenger.showSnackBar(
                   SnackBar(
-                    content: Text('${vaca['nome']} e todos os registros relacionados foram removidos'),
+                    content: Text(
+                      '${vaca['nome']} e todos os registros relacionados foram removidos',
+                    ),
                     backgroundColor: Colors.green,
                   ),
                 );
-                
               } catch (e) {
                 // Fechar loading se ainda estiver aberto
                 navigator.pop();
                 navigator.pop();
-                
+
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text('Erro ao excluir: $e'),
@@ -580,7 +620,10 @@ class _VacasScreenState extends State<VacasScreen> {
                 );
               }
             },
-            child: const Text('Remover Tudo', style: TextStyle(color: Colors.red)),
+            child: const Text(
+              'Remover Tudo',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -629,10 +672,7 @@ class _VacasScreenState extends State<VacasScreen> {
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Erro: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('❌ Erro: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -641,7 +681,7 @@ class _VacasScreenState extends State<VacasScreen> {
   // Mostrar estatísticas de crescimento
   Future<void> _showGrowthStats() async {
     final stats = await AnimalGrowthService.getGrowthStats();
-    
+
     if (mounted) {
       showDialog(
         context: context,
@@ -651,11 +691,18 @@ class _VacasScreenState extends State<VacasScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildStatRow('🐄 Vacas Adultas:', stats['vacasAdultas'].toString()),
+              _buildStatRow(
+                '🐄 Vacas Adultas:',
+                stats['vacasAdultas'].toString(),
+              ),
               _buildStatRow('🐮 Novilhas:', stats['novilhas'].toString()),
               _buildStatRow('🐄 Bezerros:', stats['bezerros'].toString()),
               const Divider(),
-              _buildStatRow('🎉 Prontos p/ Promoção:', stats['prontosPraPromocao'].toString(), Colors.green),
+              _buildStatRow(
+                '🎉 Prontos p/ Promoção:',
+                stats['prontosPraPromocao'].toString(),
+                Colors.green,
+              ),
             ],
           ),
           actions: [
@@ -686,10 +733,7 @@ class _VacasScreenState extends State<VacasScreen> {
           Text(label),
           Text(
             value,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, color: color),
           ),
         ],
       ),
@@ -729,7 +773,7 @@ class _VacasScreenState extends State<VacasScreen> {
         updatedData['tipo'] = 'vaca';
         updatedData['categoria'] = 'adulta';
         updatedData['dataPromocao'] = Timestamp.now();
-        
+
         // Estimar peso adulto baseado na raça
         switch (updatedData['raca'].toString().toLowerCase()) {
           case 'holandesa':
