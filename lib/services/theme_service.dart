@@ -38,7 +38,7 @@ class ThemeService extends ChangeNotifier {
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: colorScheme.background,
+      scaffoldBackgroundColor: colorScheme.surface,
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
@@ -65,7 +65,7 @@ class ThemeService extends ChangeNotifier {
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: colorScheme.background,
+      scaffoldBackgroundColor: colorScheme.surface,
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,

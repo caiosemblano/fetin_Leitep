@@ -87,7 +87,7 @@ class RoleService {
       });
     } catch (e) {
       print('Erro ao atualizar função do usuário: $e');
-      throw e;
+      rethrow;
     }
   }
 
