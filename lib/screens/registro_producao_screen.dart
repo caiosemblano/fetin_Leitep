@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../utils/app_logger.dart';
 
 class RegistroProducaoScreen extends StatefulWidget {
   final VoidCallback? onNavigateToVacas;
@@ -63,19 +64,19 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
         throw Exception('Usuário não autenticado');
       }
 
-      print('Carregando vacas para o usuário: ${user.uid}');
+      AppLogger.info('Carregando vacas para o usuário: ${user.uid}');
       final snapshot = await FirebaseFirestore.instance
           .collection('vacas')
           .where('userId', isEqualTo: user.uid)
           .get();
 
-      print('Número de vacas encontradas: ${snapshot.docs.length}');
+      AppLogger.info('Número de vacas encontradas: ${snapshot.docs.length}');
 
       if (mounted) {
         setState(() {
           _vacas = snapshot.docs.map((doc) {
             final data = {'id': doc.id, ...doc.data()};
-            print('Vaca carregada: ${data['nome']} (ID: ${data['id']})');
+            AppLogger.info('Vaca carregada: ${data['nome']} (ID: ${data['id']})');
             return data;
           }).toList();
           _isRefreshing = false;

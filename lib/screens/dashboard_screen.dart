@@ -7,9 +7,9 @@ import 'package:fetin/screens/auth/login_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/notification_service.dart';
+import '../utils/app_logger.dart';
 import 'notificacoes_screen.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import '../utils/app_logger.dart';
 import '../services/production_analysis_service.dart';
 import 'alertas_producao_screen.dart';
 
@@ -74,8 +74,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .where('userId', isEqualTo: user.uid)
           .get();
 
-      print('Dashboard - Carregando vacas para o usuário: ${user.uid}');
-      print('Dashboard - Número de vacas encontradas: ${snapshot.docs.length}');
+      AppLogger.info('Dashboard - Carregando vacas para o usuário: ${user.uid}');
+      AppLogger.info('Dashboard - Número de vacas encontradas: ${snapshot.docs.length}');
 
       final totalVacas = snapshot.docs.length;
 
@@ -94,7 +94,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
     } catch (e) {
       AppLogger.error('Erro ao carregar dados das vacas', e);
-      print('Erro ao carregar dados das vacas: $e');
     }
   }
 

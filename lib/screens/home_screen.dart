@@ -71,14 +71,14 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Leite+'),
+          title: Icon(Icons.agriculture, size: 28),
           automaticallyImplyLeading: false,
           leading: Builder(
             builder: (context) => IconButton(
               icon: const Icon(Icons.menu),
               onPressed: () => Scaffold.of(context).openDrawer(),
             ),
-          ),
+          ),  
         ),
         drawer: _buildDrawer(),
         body: IndexedStack(index: _selectedIndex, children: _screens),
@@ -118,14 +118,8 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Icon(Icons.agriculture, color: Colors.white, size: 40),
                 SizedBox(height: 16),
-                Text(
-                  'Leite+',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Icon(Icons.agriculture, color: Colors.white, size: 32),
+                SizedBox(height: 8),
                 Text(
                   'Gestão da sua fazenda',
                   style: TextStyle(color: Colors.white70, fontSize: 14),

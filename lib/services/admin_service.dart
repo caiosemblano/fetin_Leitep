@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/app_logger.dart';
 
 class AdminService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -32,7 +33,7 @@ class AdminService {
 
       return usersWithPlans;
     } catch (e) {
-      print('Erro ao buscar usuários: $e');
+      AppLogger.error('Erro ao buscar usuários: $e');
       return [];
     }
   }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/animal_growth_service.dart';
 
 class VacasScreen extends StatefulWidget {
   const VacasScreen({super.key});
@@ -71,18 +70,6 @@ class _VacasScreenState extends State<VacasScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gerenciamento de Animais'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.trending_up),
-            tooltip: 'Verificar Crescimento',
-            onPressed: () => _checkGrowthManually(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.analytics),
-            tooltip: 'Estatísticas',
-            onPressed: () => _showGrowthStats(),
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -638,106 +625,6 @@ class _VacasScreenState extends State<VacasScreen> {
     _maeController.clear();
     _paiController.clear();
     _editingId = null;
-  }
-
-  // Verificar crescimento manualmente
-  Future<void> _checkGrowthManually() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Text('Verificando crescimento...'),
-          ],
-        ),
-      ),
-    );
-
-    try {
-      await AnimalGrowthService.checkAndPromoteAnimals();
-      if (mounted) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Verificação de crescimento concluída!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        await _loadVacas();
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ Erro: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  // Mostrar estatísticas de crescimento
-  Future<void> _showGrowthStats() async {
-    final stats = await AnimalGrowthService.getGrowthStats();
-
-    if (mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('📊 Estatísticas dos Animais'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildStatRow(
-                '🐄 Vacas Adultas:',
-                stats['vacasAdultas'].toString(),
-              ),
-              _buildStatRow('🐮 Novilhas:', stats['novilhas'].toString()),
-              _buildStatRow('🐄 Bezerros:', stats['bezerros'].toString()),
-              const Divider(),
-              _buildStatRow(
-                '🎉 Prontos p/ Promoção:',
-                stats['prontosPraPromocao'].toString(),
-                Colors.green,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Fechar'),
-            ),
-            if (stats['prontosPraPromocao']! > 0)
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _checkGrowthManually();
-                },
-                child: const Text('Promover Agora'),
-              ),
-          ],
-        ),
-      );
-    }
-  }
-
-  Widget _buildStatRow(String label, String value, [Color? color]) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label),
-          Text(
-            value,
-            style: TextStyle(fontWeight: FontWeight.bold, color: color),
-          ),
-        ],
-      ),
-    );
   }
 
   // Promover animal individual

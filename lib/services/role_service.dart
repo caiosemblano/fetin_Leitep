@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../utils/app_logger.dart';
 
 class UserRole {
   final bool isAdmin;
@@ -20,7 +21,7 @@ class UserRole {
           role: jsonData['role'] ?? 'user',
         );
       } catch (e) {
-        print('Erro ao fazer parse do JSON: $e');
+        AppLogger.error('Erro ao fazer parse do JSON: $e');
         return UserRole();
       }
     }
@@ -60,7 +61,7 @@ class RoleService {
 
       return UserRole.fromFirestore(doc.data()?['role_info']);
     } catch (e) {
-      print('Erro ao buscar função do usuário: $e');
+      AppLogger.error('Erro ao buscar função do usuário: $e');
       return UserRole();
     }
   }
@@ -86,14 +87,14 @@ class RoleService {
         'role_info': {'isAdmin': isAdmin, 'role': role},
       });
     } catch (e) {
-      print('Erro ao atualizar função do usuário: $e');
+      AppLogger.error('Erro ao atualizar função do usuário: $e');
       rethrow;
     }
   }
 
   Future<bool> isUserAdmin() async {
     final role = await getUserRole();
-    print('Verificando admin - isAdmin: ${role.isAdmin}, role: ${role.role}');
+    AppLogger.info('Verificando admin - isAdmin: ${role.isAdmin}, role: ${role.role}');
     return role.isAdmin;
   }
 }

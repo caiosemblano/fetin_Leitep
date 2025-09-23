@@ -54,7 +54,7 @@ class MyApp extends StatelessWidget {
     final themeService = Provider.of<ThemeService>(context);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Leite+',
+      title: 'Fazenda App',
       theme: themeService.lightTheme,
       darkTheme: themeService.darkTheme,
       themeMode: themeService.isDarkMode ? ThemeMode.dark : ThemeMode.light,
