@@ -44,6 +44,7 @@ class _SaudeScreenState extends State<SaudeScreen> {
           ],
         ),
         floatingActionButton: FloatingActionButton(
+          heroTag: "saude_fab",
           onPressed: _adicionarTratamento,
           child: const Icon(Icons.add),
         ),

@@ -54,7 +54,7 @@ class MyApp extends StatelessWidget {
     final themeService = Provider.of<ThemeService>(context);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Fazenda App',
+      title: 'Leite+',
       theme: themeService.lightTheme,
       darkTheme: themeService.darkTheme,
       themeMode: themeService.isDarkMode ? ThemeMode.dark : ThemeMode.light,
@@ -143,7 +143,6 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
   }
 
   void _startLogoutTimer() {
-    // Timer desabilitado - "lembrar de mim" agora é permanente até logout manual
     _logoutTimer?.cancel();
     // _logoutTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
     //   _checkAutoLogout();

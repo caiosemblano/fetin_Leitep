@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import '../services/backup_service.dart';
 import '../services/theme_service.dart';
+import '../services/orphan_cleanup_service.dart';
 
 class ConfiguracoesScreen extends StatefulWidget {
   const ConfiguracoesScreen({super.key});
@@ -174,6 +175,20 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
             subtitle: const Text('Restaurar do último backup'),
             trailing: const Icon(Icons.restore),
             onTap: _restaurarDados,
+          ),
+
+          ListTile(
+            title: const Text('Limpeza Manual (Avançado)'),
+            subtitle: const Text('Remoção manual de órfãos - raramente necessário'),
+            trailing: const Icon(Icons.cleaning_services, color: Colors.orange),
+            onTap: _limparOrfaos,
+          ),
+
+          ListTile(
+            title: const Text('Verificar Órfãos (Avançado)'),
+            subtitle: const Text('Apenas verificar integridade dos dados'),
+            trailing: const Icon(Icons.search, color: Colors.blue),
+            onTap: _verificarOrfaos,
           ),
 
           const Divider(),
@@ -551,6 +566,150 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
         Navigator.of(context).pop(); // Fechar loading
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _limparOrfaos() async {
+    // Mostrar diálogo de confirmação
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('🧹 Limpeza Manual de Órfãos'),
+        content: const Text(
+          'NOTA: A limpeza automática já remove órfãos quando vacas são excluídas.\n\n'
+          'Esta limpeza manual é apenas para casos especiais e irá:\n\n'
+          '• Verificar registros de produção sem vaca\n'
+          '• Remover alertas de vacas inexistentes\n'
+          '• Limpar backups muito antigos\n\n'
+          'Recomendado apenas se houver problemas de dados.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+            ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Executar Limpeza'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    try {
+      // Mostrar loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Text('🧹 Limpando dados órfãos...'),
+            ],
+          ),
+        ),
+      );
+
+      final result = await OrphanCleanupService.performFullCleanup();
+
+      if (mounted) {
+        Navigator.of(context).pop(); // Fechar loading
+
+        // Mostrar resultado detalhado
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('✅ Limpeza Concluída'),
+            content: SingleChildScrollView(
+              child: Text(result.toString()),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Fechar loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Erro na limpeza: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _verificarOrfaos() async {
+    try {
+      // Mostrar loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Text('🔍 Verificando órfãos...'),
+            ],
+          ),
+        ),
+      );
+
+      final result = await OrphanCleanupService.checkOrphansOnly();
+
+      if (mounted) {
+        Navigator.of(context).pop(); // Fechar loading
+
+        // Mostrar resultado da verificação
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('🔍 Verificação de Órfãos'),
+            content: Text(
+              result.totalOrphansDeleted > 0
+                  ? '⚠️ Encontrados ${result.productionRecordsDeleted} registros órfãos\n\n'
+                    'Use "Limpeza Manual" para removê-los.'
+                  : '✅ Nenhum dado órfão encontrado!\n\nSeus dados estão organizados.',
+            ),
+            actions: [
+              if (result.totalOrphansDeleted > 0)
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _limparOrfaos();
+                  },
+                  child: const Text('Limpar Agora'),
+                ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Fechar loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Erro na verificação: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }

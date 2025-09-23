@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/orphan_cleanup_service.dart';
 
 class VacasScreen extends StatefulWidget {
   const VacasScreen({super.key});
@@ -107,6 +108,7 @@ class _VacasScreenState extends State<VacasScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: "vacas_fab",
         onPressed: () => _showVacaForm(context),
         child: const Icon(Icons.add),
       ),
@@ -578,6 +580,15 @@ class _VacasScreenState extends State<VacasScreen> {
 
                 // Executar batch
                 await batch.commit();
+
+                // Limpeza automática de órfãos relacionados à vaca deletada
+                final user = FirebaseAuth.instance.currentUser;
+                if (user != null) {
+                  await OrphanCleanupService.cleanupAfterCowDeletion(
+                    vaca['id'], 
+                    user.uid,
+                  );
+                }
 
                 // Fechar loading
                 navigator.pop();

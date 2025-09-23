@@ -1,9 +1,7 @@
-import 'package:fetin/screens/atividades_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'atividades_repository.dart';
-import 'package:fetin/screens/auth/login_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/notification_service.dart';
@@ -98,9 +96,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadProducaoData() async {
-    final now = DateTime.now();
-    final sevenDaysAgo = now.subtract(const Duration(days: 7));
-
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       throw Exception('Usuário não autenticado');
@@ -114,11 +109,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final vacasAtivas = vacasSnapshot.docs.map((doc) => doc.id).toSet();
 
+    // Consulta simplificada - apenas por userId primeiro
     final snapshot = await FirebaseFirestore.instance
         .collection('registros_producao')
         .where('userId', isEqualTo: user.uid)
-        .where('tipo', isEqualTo: 'Leite')
-        .where('dataHora', isGreaterThan: Timestamp.fromDate(sevenDaysAgo))
         .get();
 
     // Agrupar por dia da semana
@@ -139,13 +133,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     for (var doc in snapshot.docs) {
       final data = doc.data();
       final vacaId = data['vacaId'] as String;
+      final tipo = data['tipo'] as String?;
+      final dataHora = (data['dataHora'] as Timestamp).toDate();
 
-      // ✅ FILTRO: Só processar se a vaca ainda existir
+      // Filtros aplicados no cliente para evitar índices complexos
+      // 1. Só processar se a vaca ainda existir
       if (!vacasAtivas.contains(vacaId)) {
-        continue; // Pular registros de vacas excluídas
+        continue;
       }
 
-      final dataHora = (data['dataHora'] as Timestamp).toDate();
+      // 2. Só processar registros de leite
+      if (tipo != 'Leite') {
+        continue;
+      }
+
+      // 3. Só processar registros dos últimos 7 dias
+      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+      if (dataHora.isBefore(sevenDaysAgo)) {
+        continue;
+      }
+
       final quantidade = (data['quantidade'] as num).toDouble();
 
       final diaSemana = diasSemana[dataHora.weekday % 7];
@@ -238,174 +245,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  Future<void> _createSampleData() async {
-    try {
-      final firestore = FirebaseFirestore.instance;
-
-      // Criar vacas de exemplo
-      final vacasExemplo = [
-        {
-          'nome': 'Malhada',
-          'raca': 'Holandesa',
-          'lactacao': true,
-          'status_reprodutivo': 'Cio',
-          'idade': 4,
-          'peso': 650.0,
-        },
-        {
-          'nome': 'Estrela',
-          'raca': 'Jersey',
-          'lactacao': true,
-          'status_reprodutivo': 'Gest.',
-          'idade': 5,
-          'peso': 450.0,
-        },
-        {
-          'nome': 'Flor',
-          'raca': 'Gir',
-          'lactacao': false,
-          'status_reprodutivo': 'Parto',
-          'idade': 3,
-          'peso': 520.0,
-        },
-        {
-          'nome': 'Linda',
-          'raca': 'Holandesa',
-          'lactacao': true,
-          'status_reprodutivo': 'Insem.',
-          'idade': 6,
-          'peso': 700.0,
-        },
-        {
-          'nome': 'Mimosa',
-          'raca': 'Parda Suíça',
-          'lactacao': true,
-          'status_reprodutivo': 'Cio',
-          'idade': 4,
-          'peso': 580.0,
-        },
-      ];
-
-      // Adicionar vacas
-      for (var vaca in vacasExemplo) {
-        await firestore.collection('vacas').add(vaca);
-      }
-
-      // Criar registros de produção dos últimos 7 dias
-      final now = DateTime.now();
-      for (int i = 0; i < 7; i++) {
-        final data = now.subtract(Duration(days: i));
-
-        // Simular 2-3 ordenhas por dia
-        for (int j = 0; j < 2; j++) {
-          await firestore.collection('registros_producao').add({
-            'vacaId': 'vaca_exemplo_${i % 3}',
-            'quantidade': 15.0 + (i * 2) + (j * 5), // Variação realista
-            'dataHora': Timestamp.fromDate(
-              data.add(Duration(hours: 6 + (j * 12))),
-            ),
-            'createdAt': FieldValue.serverTimestamp(),
-          });
-        }
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Dados de exemplo criados com sucesso!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-
-      // Recarregar dashboard
-      _loadDashboardData();
-    } catch (e) {
-      AppLogger.error('Erro ao criar dados de exemplo', e);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao criar dados de exemplo: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadDashboardData,
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'create_sample') {
-                _createSampleData();
-              }
-            },
-            itemBuilder: (BuildContext context) => [
-              const PopupMenuItem<String>(
-                value: 'create_sample',
-                child: Row(
-                  children: [
-                    Icon(Icons.add_circle_outline),
-                    SizedBox(width: 8),
-                    Text('Criar Dados de Exemplo'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.red),
-            onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-              );
-            },
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(context),
-                  const SizedBox(height: 20),
-                  _buildQuickStats(context),
-                  const SizedBox(height: 20),
-                  _buildChartSelector(context),
-                  const SizedBox(height: 10),
-                  _buildSelectedChart(context),
-                  const SizedBox(height: 20),
-                  _buildRecentActivities(context),
-                ],
-              ),
+    return _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(context),
+                const SizedBox(height: 20),
+                _buildQuickStats(context),
+                const SizedBox(height: 20),
+                _buildChartSelector(context),
+                const SizedBox(height: 10),
+                _buildSelectedChart(context),
+                const SizedBox(height: 20),
+                _buildRecentActivities(context),
+              ],
             ),
-    );
+          );
   }
 
   Widget _buildHeader(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                "Dashboard",
+                style: Theme.of(
+                  context,
+                ).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _loadDashboardData,
+              tooltip: 'Atualizar dados',
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
         Text(
           "Bem-vindo, Fazendeiro! 👨‍🌾",
           style: Theme.of(
             context,
-          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         Text(
           "Resumo da sua fazenda leiteira",
           style: Theme.of(
@@ -853,21 +747,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             )
                             .toList(),
                       ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AtividadesScreen(),
-                    ),
-                  );
-                },
-                child: const Text('Ver todos os registros'),
               ),
             ),
           ],

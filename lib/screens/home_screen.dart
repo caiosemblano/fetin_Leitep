@@ -8,7 +8,6 @@ import 'saude_screen.dart';
 import 'relatorios_screen.dart';
 import 'configuracoes_screen.dart';
 import 'notificacoes_screen.dart';
-import 'limpeza_dados_screen.dart';
 import '../services/persistent_auth_service.dart';
 import 'planos_screen.dart';
 import 'auth/login_screen.dart';
@@ -71,11 +70,22 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Icon(Icons.agriculture, size: 28),
+          backgroundColor: const Color(0xFF5DADE2), // Azul claro
+          foregroundColor: Colors.white, // Texto e ícones brancos
+          elevation: 4.0, // Adiciona sombra para definir o limite
+          scrolledUnderElevation: 4.0, // Mantém elevação no scroll
+          title: const Text(
+            'Leite+',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 24,
+              color: Colors.white,
+            ),
+          ),
           automaticallyImplyLeading: false,
           leading: Builder(
             builder: (context) => IconButton(
-              icon: const Icon(Icons.menu),
+              icon: const Icon(Icons.menu, color: Colors.white),
               onPressed: () => Scaffold.of(context).openDrawer(),
             ),
           ),  
@@ -111,16 +121,22 @@ class _HomeScreenState extends State<HomeScreen> {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          const DrawerHeader(
-            decoration: BoxDecoration(color: Colors.blue),
+          DrawerHeader(
+            decoration: const BoxDecoration(color: Colors.blue),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.agriculture, color: Colors.white, size: 40),
-                SizedBox(height: 16),
-                Icon(Icons.agriculture, color: Colors.white, size: 32),
-                SizedBox(height: 8),
-                Text(
+                const Text(
+                  'Leite+',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
                   'Gestão da sua fazenda',
                   style: TextStyle(color: Colors.white70, fontSize: 14),
                 ),
@@ -172,19 +188,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const NotificacoesScreen(),
-                ),
-              );
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.cleaning_services),
-            title: const Text('Limpeza de Dados'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const LimpezaDadosScreen(),
                 ),
               );
             },

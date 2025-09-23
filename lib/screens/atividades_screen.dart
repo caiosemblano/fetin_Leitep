@@ -102,6 +102,7 @@ class _AtividadesScreenState extends State<AtividadesScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: "atividades_fab",
         onPressed: () => _showAddActivityDialog(context),
         child: const Icon(Icons.add),
       ),

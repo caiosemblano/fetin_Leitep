@@ -264,16 +264,27 @@ class ProductionAnalysisService {
   /// Busca alertas pendentes
   static Future<List<Map<String, dynamic>>> getPendingAlerts() async {
     try {
+      // Consulta simplificada para evitar índices complexos
       final snapshot = await FirebaseFirestore.instance
           .collection('alertas_producao')
           .where('status', isEqualTo: 'pendente')
-          .orderBy('dataAlerta', descending: true)
           .get();
 
-      return snapshot.docs.map((doc) => {
+      // Ordenar no cliente para evitar índice composto
+      final alerts = snapshot.docs.map((doc) => {
         'id': doc.id,
         ...doc.data(),
       }).toList();
+
+      // Ordenar por dataAlerta localmente
+      alerts.sort((a, b) {
+        final dataA = a['dataAlerta'] as Timestamp?;
+        final dataB = b['dataAlerta'] as Timestamp?;
+        if (dataA == null || dataB == null) return 0;
+        return dataB.compareTo(dataA); // Descending order
+      });
+
+      return alerts;
     } catch (e) {
       AppLogger.error('Erro ao buscar alertas pendentes', e);
       return [];
