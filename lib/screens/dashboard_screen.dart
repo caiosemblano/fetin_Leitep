@@ -117,6 +117,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final snapshot = await FirebaseFirestore.instance
         .collection('registros_producao')
+        .where('userId', isEqualTo: user.uid)
+        .where('tipo', isEqualTo: 'Leite')
         .where('dataHora', isGreaterThan: Timestamp.fromDate(sevenDaysAgo))
         .get();
 

@@ -1,4 +1,4 @@
-# fetin
+# Leite+
 
 Nosso projeto feito para Fetin 2025
 
