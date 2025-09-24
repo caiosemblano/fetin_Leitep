@@ -206,83 +206,95 @@ class _VacasScreenState extends State<VacasScreen> {
     }
   }
 
+  void _showVacaDetails(Map<String, dynamic> vaca) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return VacaDetailsDialog(vaca: vaca);
+      },
+    );
+  }
+
   Widget _buildVacaCard(Map<String, dynamic> vaca) {
     final tipo = vaca['tipo'] ?? 'vaca';
     final isYoung = tipo == 'bezerro' || tipo == 'bezerra' || tipo == 'novilha';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: _getTypeColor(tipo),
-          child: Icon(_getTypeIcon(tipo), color: Colors.white),
-        ),
-        title: Row(
-          children: [
-            Expanded(child: Text(vaca['nome'])),
-            if (isYoung)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.orange[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _formatTipo(tipo),
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.orange[800],
-                    fontWeight: FontWeight.bold,
+      child: InkWell(
+        onTap: () => _showVacaDetails(vaca),
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: _getTypeColor(tipo),
+            child: Icon(_getTypeIcon(tipo), color: Colors.white),
+          ),
+          title: Row(
+            children: [
+              Expanded(child: Text(vaca['nome'])),
+              if (isYoung)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _formatTipo(tipo),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.orange[800],
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Raça: ${vaca['raca']}'),
-            Text('Idade: ${vaca['idade']} anos'),
-            Text('Peso: ${vaca['peso']} kg'),
-            if (vaca['lactacao'] == true)
-              const Text('Em lactação', style: TextStyle(color: Colors.green)),
-            if (isYoung && _isReadyToPromote(vaca))
-              Container(
-                margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.green[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '🎉 Pronto para ser vaca adulta!',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.green[800],
-                    fontWeight: FontWeight.bold,
+            ],
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Raça: ${vaca['raca']}'),
+              Text('Idade: ${vaca['idade']} anos'),
+              Text('Peso: ${vaca['peso']} kg'),
+              if (vaca['lactacao'] == true)
+                const Text('Em lactação', style: TextStyle(color: Colors.green)),
+              if (isYoung && _isReadyToPromote(vaca))
+                Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '🎉 Pronto para ser vaca adulta!',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.green[800],
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isYoung && _isReadyToPromote(vaca))
+            ],
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isYoung && _isReadyToPromote(vaca))
+                IconButton(
+                  icon: const Icon(Icons.trending_up, color: Colors.green),
+                  tooltip: 'Promover para vaca adulta',
+                  onPressed: () => _promoteAnimal(vaca),
+                ),
               IconButton(
-                icon: const Icon(Icons.trending_up, color: Colors.green),
-                tooltip: 'Promover para vaca adulta',
-                onPressed: () => _promoteAnimal(vaca),
+                icon: const Icon(Icons.edit, color: Colors.blue),
+                onPressed: () => _showVacaForm(context, vaca: vaca),
               ),
-            IconButton(
-              icon: const Icon(Icons.edit, color: Colors.blue),
-              onPressed: () => _showVacaForm(context, vaca: vaca),
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () => _deleteVaca(vaca),
-            ),
-          ],
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () => _deleteVaca(vaca),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -463,6 +475,26 @@ class _VacasScreenState extends State<VacasScreen> {
     final messenger = ScaffoldMessenger.of(context);
 
     if (_editingId != null) {
+      // Buscar peso anterior antes de atualizar
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection('vacas')
+          .doc(_editingId)
+          .get();
+      
+      if (docSnapshot.exists) {
+        final dadosAtuais = docSnapshot.data()!;
+        final pesoAnterior = dadosAtuais['peso'] as String?;
+        
+        // Se o peso mudou, salvar no histórico
+        if (pesoAnterior != null && pesoAnterior != peso) {
+          await _salvarHistoricoPeso(
+            vacaId: _editingId!,
+            pesoAnterior: pesoAnterior,
+            pesoNovo: peso,
+          );
+        }
+      }
+      
       // Atualiza vaca existente
       await FirebaseFirestore.instance
           .collection('vacas')
@@ -483,6 +515,29 @@ class _VacasScreenState extends State<VacasScreen> {
 
     await _loadVacas();
     _filterVacas();
+  }
+
+  Future<void> _salvarHistoricoPeso({
+    required String vacaId,
+    required String pesoAnterior,
+    required String pesoNovo,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final historicoPesoData = {
+      'vacaId': vacaId,
+      'userId': user.uid,
+      'pesoAnterior': pesoAnterior,
+      'pesoNovo': pesoNovo,
+      'dataAlteracao': FieldValue.serverTimestamp(),
+    };
+
+    await FirebaseFirestore.instance
+        .collection('historico_peso')
+        .add(historicoPesoData);
+    
+    print('💾 Histórico de peso salvo - Anterior: $pesoAnterior kg → Novo: $pesoNovo kg');
   }
 
   Future<void> _loadVacas() async {
@@ -711,6 +766,729 @@ class _VacasScreenState extends State<VacasScreen> {
           );
         }
       }
+    }
+  }
+}
+
+class VacaDetailsDialog extends StatefulWidget {
+  final Map<String, dynamic> vaca;
+
+  const VacaDetailsDialog({super.key, required this.vaca});
+
+  @override
+  State<VacaDetailsDialog> createState() => _VacaDetailsDialogState();
+}
+
+class _VacaDetailsDialogState extends State<VacaDetailsDialog>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  List<Map<String, dynamic>> _registrosProducao = [];
+  List<Map<String, dynamic>> _registrosSaude = [];
+  List<Map<String, dynamic>> _registrosCiclo = [];
+  List<Map<String, dynamic>> _historicoPeso = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 5, vsync: this);
+    _loadRegistros();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadRegistros() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      print('🔍 Iniciando busca de registros para vaca: ${widget.vaca['id']}');
+      print('🔍 User ID: ${user.uid}');
+
+      // Buscar todos os registros desta vaca
+      final snapshot = await FirebaseFirestore.instance
+          .collection('registros_producao')
+          .where('userId', isEqualTo: user.uid)
+          .where('vacaId', isEqualTo: widget.vaca['id'])
+          .get();
+
+      print('🔍 Total de registros encontrados: ${snapshot.docs.length}');
+
+      List<Map<String, dynamic>> producao = [];
+      List<Map<String, dynamic>> saude = [];
+      List<Map<String, dynamic>> ciclo = [];
+
+      for (var doc in snapshot.docs) {
+        final data = {...doc.data(), 'id': doc.id};
+        final tipo = data['tipo'] as String?;
+        
+        print('🔍 Registro encontrado - Tipo: $tipo, Data: ${data['dataHora']}, VacaId: ${data['vacaId']}');
+
+        switch (tipo) {
+          case 'Leite':
+            producao.add(data);
+            print('📊 Adicionado à produção: quantidade=${data['quantidade']}');
+            break;
+          case 'Saúde':
+            saude.add(data);
+            print('🏥 Adicionado à saúde: observacao=${data['observacao']}');
+            break;
+          case 'Ciclo':
+            ciclo.add(data);
+            print('🔄 Adicionado ao ciclo: periodo=${data['periodoCiclo']}');
+            break;
+        }
+      }
+
+      print('📊 Total produção: ${producao.length}');
+      print('🏥 Total saúde: ${saude.length}');
+      print('🔄 Total ciclo: ${ciclo.length}');
+
+      // Buscar histórico de peso (usando apenas um filtro para evitar índice composto)
+      final historicoPesoSnapshot = await FirebaseFirestore.instance
+          .collection('historico_peso')
+          .where('userId', isEqualTo: user.uid)
+          .get();
+
+      List<Map<String, dynamic>> historicoPeso = [];
+      for (var doc in historicoPesoSnapshot.docs) {
+        final data = {...doc.data(), 'id': doc.id};
+        // Filtrar por vacaId no lado do cliente
+        if (data['vacaId'] == widget.vaca['id']) {
+          historicoPeso.add(data);
+        }
+      }
+      
+      // Ordenar no lado do cliente por dataAlteracao (mais recente primeiro)
+      historicoPeso.sort((a, b) {
+        final timestampA = a['dataAlteracao'] as Timestamp?;
+        final timestampB = b['dataAlteracao'] as Timestamp?;
+        if (timestampA == null || timestampB == null) return 0;
+        return timestampB.compareTo(timestampA);
+      });
+      
+      print('⚖️ Total histórico de peso: ${historicoPeso.length}');
+
+      if (mounted) {
+        setState(() {
+          _registrosProducao = producao;
+          _registrosSaude = saude;
+          _registrosCiclo = ciclo;
+          _historicoPeso = historicoPeso;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Erro ao carregar registros: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vaca = widget.vaca;
+    final tipo = vaca['tipo'] ?? 'vaca';
+
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.9,
+        height: MediaQuery.of(context).size.height * 0.8,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            // Cabeçalho
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue[600],
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  topRight: Radius.circular(4),
+                ),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Colors.white,
+                    child: Icon(
+                      _getTypeIcon(tipo),
+                      color: Colors.blue[600],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          vaca['nome'],
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '${_formatTipo(tipo)} • ${vaca['raca']}',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            // Informações básicas
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildInfoCard('Idade', '${vaca['idade']} anos', Icons.cake),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildInfoCard('Peso', '${vaca['peso']} kg', Icons.monitor_weight),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildInfoCard(
+                      'Status',
+                      vaca['lactacao'] == true ? 'Lactação' : 'Seca',
+                      vaca['lactacao'] == true ? Icons.water_drop : Icons.block,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Tabs
+            TabBar(
+              controller: _tabController,
+              labelColor: Colors.blue[600],
+              unselectedLabelColor: Colors.grey,
+              tabs: const [
+                Tab(text: 'Geral'),
+                Tab(text: 'Produção'),
+                Tab(text: 'Saúde'),
+                Tab(text: 'Ciclo'),
+                Tab(text: 'Peso'),
+              ],
+            ),
+            // Conteúdo das tabs
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildGeralTab(),
+                  _buildProducaoTab(),
+                  _buildSaudeTab(),
+                  _buildCicloTab(),
+                  _buildPesoTab(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(String label, String value, IconData icon) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Icon(icon, color: Colors.blue[600]),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGeralTab() {
+    final vaca = widget.vaca;
+    
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Informações Genealógicas',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          _buildDetailRow('Nome', vaca['nome']),
+          _buildDetailRow('Raça', vaca['raca']),
+          _buildDetailRow('Tipo', _formatTipo(vaca['tipo'] ?? 'vaca')),
+          _buildDetailRow('Idade', '${vaca['idade']} anos'),
+          _buildDetailRow('Peso', '${vaca['peso']} kg'),
+          if (vaca['mae'] != null && vaca['mae'].toString().isNotEmpty)
+            _buildDetailRow('Mãe', vaca['mae']),
+          if (vaca['pai'] != null && vaca['pai'].toString().isNotEmpty)
+            _buildDetailRow('Pai', vaca['pai']),
+          _buildDetailRow('Status Reprodutivo', vaca['status_reprodutivo'] ?? 'Não definido'),
+          _buildDetailRow('Em Lactação', vaca['lactacao'] == true ? 'Sim' : 'Não'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProducaoTab() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_registrosProducao.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.water_drop_outlined, size: 48, color: Colors.grey),
+            SizedBox(height: 16),
+            Text('Nenhum registro de produção encontrado'),
+          ],
+        ),
+      );
+    }
+
+    // Calcular estatísticas
+    double totalProducao = 0;
+    double mediaProducao = 0;
+    double maiorProducao = 0;
+
+    for (var registro in _registrosProducao) {
+      final quantidade = (registro['quantidade'] as num?)?.toDouble() ?? 0;
+      totalProducao += quantidade;
+      if (quantidade > maiorProducao) maiorProducao = quantidade;
+    }
+
+    mediaProducao = _registrosProducao.isNotEmpty ? totalProducao / _registrosProducao.length : 0;
+
+    return Column(
+      children: [
+        // Estatísticas
+        Container(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildStatCard('Total', '${totalProducao.toStringAsFixed(1)}L', Icons.opacity),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildStatCard('Média', '${mediaProducao.toStringAsFixed(1)}L', Icons.trending_up),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildStatCard('Maior', '${maiorProducao.toStringAsFixed(1)}L', Icons.star),
+              ),
+            ],
+          ),
+        ),
+        const Divider(),
+        // Lista de registros
+        Expanded(
+          child: ListView.builder(
+            itemCount: _registrosProducao.length,
+            itemBuilder: (context, index) {
+              final registro = _registrosProducao[index];
+              final dataHora = (registro['dataHora'] as Timestamp).toDate();
+              final quantidade = (registro['quantidade'] as num?)?.toDouble() ?? 0;
+
+              return ListTile(
+                leading: const Icon(Icons.water_drop, color: Colors.blue),
+                title: Text('${quantidade.toStringAsFixed(1)} litros'),
+                subtitle: Text('${dataHora.day}/${dataHora.month}/${dataHora.year} às ${dataHora.hour.toString().padLeft(2, '0')}:${dataHora.minute.toString().padLeft(2, '0')}'),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSaudeTab() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_registrosSaude.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.health_and_safety_outlined, size: 48, color: Colors.grey),
+            SizedBox(height: 16),
+            Text('Nenhum registro de saúde encontrado'),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _registrosSaude.length,
+      itemBuilder: (context, index) {
+        final registro = _registrosSaude[index];
+        final dataHora = (registro['dataHora'] as Timestamp).toDate();
+        final observacao = registro['observacao'] ?? '';
+
+        return Card(
+          child: ListTile(
+            leading: const Icon(Icons.health_and_safety, color: Colors.red),
+            title: Text(observacao),
+            subtitle: Text('${dataHora.day}/${dataHora.month}/${dataHora.year} às ${dataHora.hour.toString().padLeft(2, '0')}:${dataHora.minute.toString().padLeft(2, '0')}'),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCicloTab() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_registrosCiclo.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.autorenew_outlined, size: 48, color: Colors.grey),
+            SizedBox(height: 16),
+            Text('Nenhum registro de ciclo encontrado'),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _registrosCiclo.length,
+      itemBuilder: (context, index) {
+        final registro = _registrosCiclo[index];
+        final dataHora = (registro['dataHora'] as Timestamp).toDate();
+        final periodoCiclo = registro['periodoCiclo'] ?? '';
+        final observacao = registro['observacao'] ?? '';
+
+        return Card(
+          child: ListTile(
+            leading: Icon(_getCicloIcon(periodoCiclo), color: _getCicloColor(periodoCiclo)),
+            title: Text(periodoCiclo),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${dataHora.day}/${dataHora.month}/${dataHora.year} às ${dataHora.hour.toString().padLeft(2, '0')}:${dataHora.minute.toString().padLeft(2, '0')}'),
+                if (observacao.isNotEmpty) Text(observacao),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPesoTab() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Peso atual
+          Card(
+            color: Colors.blue.shade50,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Icon(Icons.monitor_weight, color: Colors.blue.shade700, size: 32),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Peso Atual',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade700,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        '${widget.vaca['peso']} kg',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // Título do histórico
+          Text(
+            'Histórico de Alterações',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          
+          // Lista de histórico
+          Expanded(
+            child: _historicoPeso.isEmpty
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.history, size: 64, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text(
+                          'Nenhuma alteração de peso registrada',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _historicoPeso.length,
+                    itemBuilder: (context, index) {
+                      final historico = _historicoPeso[index];
+                      final dataAlteracao = historico['dataAlteracao'] != null
+                          ? (historico['dataAlteracao'] as Timestamp).toDate()
+                          : DateTime.now();
+                      final pesoAnterior = historico['pesoAnterior'] as String;
+                      final pesoNovo = historico['pesoNovo'] as String;
+                      
+                      final diferenca = (double.tryParse(pesoNovo) ?? 0) - 
+                                       (double.tryParse(pesoAnterior) ?? 0);
+                      
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: diferenca >= 0 ? Colors.green.shade100 : Colors.red.shade100,
+                            child: Icon(
+                              diferenca >= 0 ? Icons.trending_up : Icons.trending_down,
+                              color: diferenca >= 0 ? Colors.green.shade700 : Colors.red.shade700,
+                            ),
+                          ),
+                          title: Row(
+                            children: [
+                              Text(
+                                '$pesoAnterior kg',
+                                style: TextStyle(
+                                  decoration: TextDecoration.lineThrough,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Icon(
+                                Icons.arrow_forward,
+                                size: 16,
+                                color: Colors.grey.shade600,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '$pesoNovo kg',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${dataAlteracao.day}/${dataAlteracao.month}/${dataAlteracao.year} às '
+                                '${dataAlteracao.hour.toString().padLeft(2, '0')}:'
+                                '${dataAlteracao.minute.toString().padLeft(2, '0')}',
+                              ),
+                              Text(
+                                '${diferenca >= 0 ? '+' : ''}${diferenca.toStringAsFixed(1)} kg',
+                                style: TextStyle(
+                                  color: diferenca >= 0 ? Colors.green.shade700 : Colors.red.shade700,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String label, String value, IconData icon) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Icon(icon, color: Colors.blue[600]),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getTypeIcon(String tipo) {
+    switch (tipo) {
+      case 'bezerro':
+      case 'bezerra':
+        return Icons.child_care;
+      case 'novilha':
+        return Icons.person;
+      case 'vaca':
+      default:
+        return Icons.pets;
+    }
+  }
+
+  String _formatTipo(String tipo) {
+    switch (tipo) {
+      case 'vaca':
+        return 'Vaca Adulta';
+      case 'bezerro':
+        return 'Bezerro';
+      case 'bezerra':
+        return 'Bezerra';
+      case 'novilha':
+        return 'Novilha';
+      default:
+        return tipo;
+    }
+  }
+
+  IconData _getCicloIcon(String periodo) {
+    switch (periodo.toLowerCase()) {
+      case 'cio':
+        return Icons.favorite;
+      case 'cobertura':
+      case 'inseminação':
+        return Icons.male;
+      case 'prenhez confirmada':
+      case 'gestação':
+        return Icons.pregnant_woman;
+      case 'parto':
+        return Icons.child_care;
+      case 'seca':
+        return Icons.block;
+      default:
+        return Icons.autorenew;
+    }
+  }
+
+  Color _getCicloColor(String periodo) {
+    switch (periodo.toLowerCase()) {
+      case 'cio':
+        return Colors.red;
+      case 'cobertura':
+      case 'inseminação':
+        return Colors.blue;
+      case 'prenhez confirmada':
+      case 'gestação':
+        return Colors.green;
+      case 'parto':
+        return Colors.orange;
+      case 'seca':
+        return Colors.grey;
+      default:
+        return Colors.purple;
     }
   }
 }

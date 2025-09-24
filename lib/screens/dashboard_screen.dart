@@ -174,30 +174,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadSaudeData() async {
-    final repo = Provider.of<AtividadesRepository>(context, listen: false);
-    final saudeActivities = repo.getAtividadesPorCategoria('Saúde');
-
-    // Agrupar por mês (últimos 6 meses)
-    Map<String, int> saudePorMes = {
-      'Jan': 0,
-      'Fev': 0,
-      'Mar': 0,
-      'Abr': 0,
-      'Mai': 0,
-      'Jun': 0,
-    };
-
-    // Para este exemplo, vamos usar dados simulados baseados nas atividades existentes
-    List<String> meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
-    for (int i = 0; i < meses.length; i++) {
-      saudePorMes[meses[i]] = (saudeActivities.length / 6).round();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw Exception('Usuário não autenticado');
     }
 
-    setState(() {
-      _saudeData = saudePorMes.entries
-          .map((entry) => ChartData(entry.key, entry.value.toDouble()))
-          .toList();
-    });
+    try {
+      // Buscar registros de saúde dos últimos 6 meses
+      final sixMonthsAgo = DateTime.now().subtract(const Duration(days: 180));
+      
+      final snapshot = await FirebaseFirestore.instance
+          .collection('registros_producao')
+          .where('userId', isEqualTo: user.uid)
+          .where('tipo', isEqualTo: 'Saúde')
+          .where('dataHora', isGreaterThan: Timestamp.fromDate(sixMonthsAgo))
+          .orderBy('dataHora', descending: false)
+          .get();
+
+      // Agrupar por mês
+      Map<String, int> saudePorMes = {
+        'Jan': 0, 'Fev': 0, 'Mar': 0, 'Abr': 0, 'Mai': 0, 'Jun': 0,
+        'Jul': 0, 'Ago': 0, 'Set': 0, 'Out': 0, 'Nov': 0, 'Dez': 0,
+      };
+
+      final mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+                          'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final dataHora = (data['dataHora'] as Timestamp).toDate();
+        final mesIndex = dataHora.month - 1;
+        final mesNome = mesesNomes[mesIndex];
+        
+        saudePorMes[mesNome] = saudePorMes[mesNome]! + 1;
+      }
+
+      // Pegar apenas os últimos 6 meses
+      final agora = DateTime.now();
+      List<ChartData> dadosGrafico = [];
+      
+      for (int i = 5; i >= 0; i--) {
+        final mes = DateTime(agora.year, agora.month - i);
+        final mesIndex = mes.month - 1;
+        final mesNome = mesesNomes[mesIndex];
+        final quantidade = saudePorMes[mesNome] ?? 0;
+        
+        dadosGrafico.add(ChartData(mesNome, quantidade.toDouble()));
+      }
+
+      setState(() {
+        _saudeData = dadosGrafico;
+      });
+    } catch (e) {
+      AppLogger.error('Erro ao carregar dados de saúde', e);
+      setState(() {
+        _saudeData = [];
+      });
+    }
   }
 
   Future<void> _loadCicloData() async {
@@ -206,43 +239,82 @@ class _DashboardScreenState extends State<DashboardScreen> {
       throw Exception('Usuário não autenticado');
     }
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection('vacas')
-        .where('userId', isEqualTo: user.uid)
-        .get();
+    try {
+      // Buscar informações das vacas primeiro
+      final vacasSnapshot = await FirebaseFirestore.instance
+          .collection('vacas')
+          .where('userId', isEqualTo: user.uid)
+          .get();
 
-    Map<String, int> cicloCounts = {
-      'Cio': 0,
-      'Insem.': 0,
-      'Gest.': 0,
-      'Parto': 0,
-    };
+      AppLogger.info('Vacas encontradas para ciclo: ${vacasSnapshot.docs.length}');
 
-    for (var doc in snapshot.docs) {
-      final data = doc.data();
-      final status = data['status_reprodutivo'] ?? data['ciclo'] ?? 'Cio';
+      Map<String, int> cicloCounts = {
+        'Cio': 0,
+        'Insem.': 0,
+        'Gest.': 0,
+        'Parto': 0,
+      };
 
-      if (cicloCounts.containsKey(status)) {
-        cicloCounts[status] = cicloCounts[status]! + 1;
-      } else {
-        // Mapear outros status para os conhecidos
-        if (status.toString().toLowerCase().contains('cio')) {
-          cicloCounts['Cio'] = cicloCounts['Cio']! + 1;
-        } else if (status.toString().toLowerCase().contains('insem')) {
-          cicloCounts['Insem.'] = cicloCounts['Insem.']! + 1;
-        } else if (status.toString().toLowerCase().contains('gest')) {
-          cicloCounts['Gest.'] = cicloCounts['Gest.']! + 1;
+      // Para cada vaca, buscar o registro de ciclo mais recente
+      for (var vacaDoc in vacasSnapshot.docs) {
+        final vacaId = vacaDoc.id;
+        final vacaData = vacaDoc.data();
+        
+        // Buscar o último registro de ciclo desta vaca
+        final registroQuery = await FirebaseFirestore.instance
+            .collection('registros_producao')
+            .where('userId', isEqualTo: user.uid)
+            .where('vacaId', isEqualTo: vacaId)
+            .where('tipo', isEqualTo: 'Ciclo')
+            .limit(1)
+            .get();
+
+        String statusFinal;
+        if (registroQuery.docs.isNotEmpty) {
+          // Usar o registro mais recente (pode não estar ordenado, mas é o único que temos)
+          final registro = registroQuery.docs.first.data();
+          statusFinal = registro['periodoCiclo'] ?? 'Cio';
+          AppLogger.info('Vaca $vacaId tem registro de ciclo: $statusFinal');
         } else {
-          cicloCounts['Cio'] = cicloCounts['Cio']! + 1;
+          // Usar status_reprodutivo da vaca
+          statusFinal = vacaData['status_reprodutivo'] ?? 'Cio';
+          AppLogger.info('Vaca $vacaId sem registro, usando status: $statusFinal');
         }
-      }
-    }
 
-    setState(() {
-      _cicloData = cicloCounts.entries
-          .map((entry) => ChartData(entry.key, entry.value.toDouble()))
-          .toList();
-    });
+        // Mapear e contar
+        String statusMapeado = _mapearStatus(statusFinal);
+        cicloCounts[statusMapeado] = cicloCounts[statusMapeado]! + 1;
+      }
+
+      AppLogger.info('Contagem final de ciclos: ${cicloCounts.toString()}');
+
+      setState(() {
+        _cicloData = cicloCounts.entries
+            .map((entry) => ChartData(entry.key, entry.value.toDouble()))
+            .toList();
+      });
+    } catch (e) {
+      AppLogger.error('Erro ao carregar dados de ciclo', e);
+      setState(() {
+        _cicloData = [];
+      });
+    }
+  }
+
+  String _mapearStatus(String status) {
+    final statusLower = status.toString().toLowerCase();
+    
+    if (statusLower.contains('cio')) {
+      return 'Cio';
+    } else if (statusLower.contains('insem') || statusLower.contains('cobertura')) {
+      return 'Insem.';
+    } else if (statusLower.contains('gest') || statusLower.contains('prenhez')) {
+      return 'Gest.';
+    } else if (statusLower.contains('parto') || statusLower.contains('lactação')) {
+      return 'Parto';
+    } else {
+      return 'Cio'; // Default
+    }
   }
 
   @override

@@ -55,10 +55,25 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
           .get();
 
       if (producoes.docs.isEmpty) {
+        // Mostrar mensagem específica sobre ausência de dados
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '📊 Nenhum registro de produção encontrado no período de '
+                '${_dataInicio.day}/${_dataInicio.month}/${_dataInicio.year} a '
+                '${_dataFim.day}/${_dataFim.month}/${_dataFim.year}',
+              ),
+              backgroundColor: Colors.blue,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+        
         setState(() {
           _producaoTotal = 0;
           _mediaDiaria = 0;
-          _melhorVaca = 'Nenhuma';
+          _melhorVaca = 'Nenhum dado no período';
           _eficiencia = 0;
           _producaoVacas = [];
           _isLoading = false;
@@ -142,6 +157,37 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
     );
 
     if (data != null) {
+      // Validações antes de atualizar
+      DateTime? novaDataInicio = isInicio ? data : _dataInicio;
+      DateTime? novaDataFim = isInicio ? _dataFim : data;
+
+      // Verificar se data de início não é após data fim
+      if (novaDataInicio.isAfter(novaDataFim)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('⚠️ A data de início deve ser anterior à data de fim'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Verificar se período não é muito longo (mais de 2 anos)
+      final diferenca = novaDataFim.difference(novaDataInicio).inDays;
+      if (diferenca > 730) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('⚠️ Período muito longo (máximo 2 anos)'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
       setState(() {
         if (isInicio) {
           _dataInicio = data;
@@ -149,6 +195,7 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
           _dataFim = data;
         }
       });
+      
       await _carregarDados(); // Recarregar dados com novo período
     }
   }
@@ -260,8 +307,14 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
                           decoration: const InputDecoration(
                             labelText: 'Data Início',
                             border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.calendar_today),
                           ),
                           readOnly: true,
+                          controller: TextEditingController(
+                            text: '${_dataInicio.day.toString().padLeft(2, '0')}/'
+                                  '${_dataInicio.month.toString().padLeft(2, '0')}/'
+                                  '${_dataInicio.year}',
+                          ),
                           onTap: () => _selecionarData(true),
                         ),
                       ),
@@ -271,12 +324,26 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
                           decoration: const InputDecoration(
                             labelText: 'Data Fim',
                             border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.calendar_today),
                           ),
                           readOnly: true,
+                          controller: TextEditingController(
+                            text: '${_dataFim.day.toString().padLeft(2, '0')}/'
+                                  '${_dataFim.month.toString().padLeft(2, '0')}/'
+                                  '${_dataFim.year}',
+                          ),
                           onTap: () => _selecionarData(false),
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Período: ${_dataFim.difference(_dataInicio).inDays + 1} dias',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
                   ),
                 ],
               ],
