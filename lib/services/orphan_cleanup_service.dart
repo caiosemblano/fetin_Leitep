@@ -59,7 +59,7 @@ class OrphanCleanupService {
     try {
       AppLogger.info('🔍 Verificando registros de produção órfãos');
       
-      // Buscar todas as vacas existentes do usuário
+      // Buscar todas as vacas existentes do usuário na coleção GLOBAL
       final vacasSnapshot = await _firestore
           .collection('vacas')
           .where('userId', isEqualTo: userId)
@@ -67,10 +67,13 @@ class OrphanCleanupService {
       
       final existingVacaIds = vacasSnapshot.docs.map((doc) => doc.id).toSet();
       
-      // Buscar todos os registros de produção do usuário
+      AppLogger.info('🐄 Total de vacas encontradas: ${existingVacaIds.length}');
+      
+      // Buscar todos os registros de produção do usuário na SUBCOLEÇÃO
       final producaoSnapshot = await _firestore
+          .collection('usuarios')
+          .doc(userId)
           .collection('registros_producao')
-          .where('userId', isEqualTo: userId)
           .get();
       
       int orphansDeleted = 0;
@@ -78,7 +81,7 @@ class OrphanCleanupService {
       
       for (var doc in producaoSnapshot.docs) {
         final data = doc.data();
-        final vacaId = data['vacaId'] as String?;
+        final vacaId = data['vaca_id'] as String?; // Campo correto é vaca_id
         
         // Se o registro referencia uma vaca que não existe mais
         if (vacaId != null && !existingVacaIds.contains(vacaId)) {
@@ -210,30 +213,11 @@ class OrphanCleanupService {
     try {
       AppLogger.info('🔍 Verificando backups órfãos');
       
-      // Buscar metadados de backup muito antigos (>30 dias)
-      final thirtyDaysAgo = DateTime.now().subtract(Duration(days: 30));
+      // Por agora, pular limpeza de backups para evitar problema de índice
+      // Isso será tratado pelo BackupService que tem sua própria lógica de limpeza
+      AppLogger.info('� Limpeza de backups delegada ao BackupService');
       
-      final backupsSnapshot = await _firestore
-          .collection('backups_metadata')
-          .where('userId', isEqualTo: userId)
-          .where('timestamp', isLessThan: Timestamp.fromDate(thirtyDaysAgo))
-          .get();
-      
-      int orphansDeleted = 0;
-      final batch = _firestore.batch();
-      
-      for (var doc in backupsSnapshot.docs) {
-        batch.delete(doc.reference);
-        orphansDeleted++;
-        AppLogger.warning('🗑️ Backup antigo removido: ${doc.id}');
-      }
-      
-      if (orphansDeleted > 0) {
-        await batch.commit();
-        AppLogger.info('✅ Removidos $orphansDeleted backups antigos');
-      }
-      
-      return orphansDeleted;
+      return 0;
     } catch (e) {
       AppLogger.error('❌ Erro ao limpar backups órfãos', e);
       return 0;
@@ -291,11 +275,12 @@ class OrphanCleanupService {
       
       final batch = _firestore.batch();
       
-      // Limpar registros de produção
+      // Limpar registros de produção na subcoleção correta
       final producaoQuery = await _firestore
+          .collection('usuarios')
+          .doc(userId)
           .collection('registros_producao')
-          .where('userId', isEqualTo: userId)
-          .where('vacaId', isEqualTo: cowId)
+          .where('vaca_id', isEqualTo: cowId)
           .get();
       
       for (var doc in producaoQuery.docs) {

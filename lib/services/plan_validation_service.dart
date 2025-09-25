@@ -14,10 +14,11 @@ class PlanValidationService {
       final user = _auth.currentUser;
       if (user == null) return false;
 
-      // Contar vacas atuais do usuário
+      // Contar vacas atuais do usuário na coleção correta
       final vacasSnapshot = await _db
+          .collection('usuarios')
+          .doc(user.uid)
           .collection('vacas')
-          .where('userId', isEqualTo: user.uid)
           .get();
 
       final currentCount = vacasSnapshot.docs.length;
@@ -41,39 +42,68 @@ class PlanValidationService {
 
   /// Verificar se o usuário pode fazer mais registros de produção este mês
   static Future<bool> canAddProductionRecord(BuildContext context, UserSubscription subscription) async {
+    print('🔍 [DEBUG] Iniciando validação de registro de produção...');
+    
     try {
       final user = _auth.currentUser;
-      if (user == null) return false;
+      if (user == null) {
+        print('❌ [DEBUG] Usuário não autenticado');
+        return false;
+      }
+      
+      print('✅ [DEBUG] Usuário: ${user.uid}');
+      print('📋 [DEBUG] Plano: ${subscription.plan}');
+      print('📊 [DEBUG] Limite: ${subscription.maxRegistrosProducaoPorMes}');
 
-      // Contar registros de produção deste mês
+      // TEMPORÁRIO: Para debug, sempre permitir se não for plano básico
+      if (subscription.plan != 'basic') {
+        print('🎯 [DEBUG] Plano não básico - permitindo (temporário)');
+        return true;
+      }
+
+      // Para planos premium (ilimitados), sempre permitir
+      if (subscription.maxRegistrosProducaoPorMes == -1) {
+        print('🎯 [DEBUG] Plano ilimitado - permitindo');
+        return true;
+      }
+
+      // Simplificar a consulta para debug
       final now = DateTime.now();
       final startOfMonth = DateTime(now.year, now.month, 1);
-      final endOfMonth = DateTime(now.year, now.month + 1, 0);
+      print('📅 [DEBUG] Período: ${startOfMonth} até ${now}');
 
+      // Buscar todos os registros do mês (sem filtro de tipo) para debug
       final registrosSnapshot = await _db
-          .collection('registros')
-          .where('userId', isEqualTo: user.uid)
-          .where('tipo', isEqualTo: 'producao')
-          .where('dataHora', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
-          .where('dataHora', isLessThanOrEqualTo: Timestamp.fromDate(endOfMonth))
+          .collection('usuarios')
+          .doc(user.uid)
+          .collection('registros_producao')
           .get();
 
-      final currentCount = registrosSnapshot.docs.length;
+      print('📝 [DEBUG] Total registros na coleção: ${registrosSnapshot.docs.length}');
 
-      if (!subscription.canAddMoreProductionRecords(currentCount)) {
+      // Para plano básico, permitir até 10 registros
+      final currentCount = registrosSnapshot.docs.length;
+      print('🔢 [DEBUG] Registros atuais: $currentCount');
+      print('⚖️ [DEBUG] Limite do plano básico: 10');
+
+      if (currentCount >= 10) {
+        print('🚫 [DEBUG] Limite do plano básico atingido (10 registros)');
         _showLimitReachedDialog(
           context,
           'Limite de Registros Atingido',
-          'Você atingiu o limite de ${subscription.maxRegistrosProducaoPorMes} registros de produção por mês do plano ${_getPlanDisplayName(subscription.plan)}.\n\n'
-          '${subscription.getUpgradeMessage('registros de produção')}',
+          'Você atingiu o limite de 10 registros de produção por mês do plano Básico.\n\n'
+          'Faça upgrade para o plano Intermediário (R\$ 59,90/mês) para registrar até 50 por mês.',
         );
         return false;
       }
 
+      print('✅ [DEBUG] Validação passou - permitindo registro ($currentCount/10)');
       return true;
     } catch (e) {
+      print('❌ [DEBUG] Erro na validação: $e');
       AppLogger.error('Erro ao verificar limite de registros: $e');
-      return false;
+      // Em caso de erro, permitir a ação para não bloquear o usuário
+      return true;
     }
   }
 

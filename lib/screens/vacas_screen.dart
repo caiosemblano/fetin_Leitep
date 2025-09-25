@@ -540,7 +540,7 @@ class _VacasScreenState extends State<VacasScreen> {
     if (user == null) return;
 
     final historicoPesoData = {
-      'vacaId': vacaId,
+      'vaca_id': vacaId,
       'userId': user.uid,
       'pesoAnterior': pesoAnterior,
       'pesoNovo': pesoNovo,
@@ -620,6 +620,9 @@ class _VacasScreenState extends State<VacasScreen> {
               final messenger = ScaffoldMessenger.of(context);
 
               try {
+                final user = FirebaseAuth.instance.currentUser;
+                if (user == null) return;
+                
                 // Mostrar loading
                 showDialog(
                   context: dialogContext,
@@ -630,8 +633,10 @@ class _VacasScreenState extends State<VacasScreen> {
 
                 // 1. Excluir registros de produção
                 final producaoSnapshot = await FirebaseFirestore.instance
+                    .collection('usuarios')
+                    .doc(user.uid)
                     .collection('registros_producao')
-                    .where('vacaId', isEqualTo: vaca['id'])
+                    .where('vaca_id', isEqualTo: vaca['id'])
                     .get();
 
                 final batch = FirebaseFirestore.instance.batch();
@@ -651,13 +656,10 @@ class _VacasScreenState extends State<VacasScreen> {
                 await batch.commit();
 
                 // Limpeza automática de órfãos relacionados à vaca deletada
-                final user = FirebaseAuth.instance.currentUser;
-                if (user != null) {
-                  await OrphanCleanupService.cleanupAfterCowDeletion(
-                    vaca['id'], 
-                    user.uid,
-                  );
-                }
+                await OrphanCleanupService.cleanupAfterCowDeletion(
+                  vaca['id'], 
+                  user.uid,
+                );
 
                 // Fechar loading
                 navigator.pop();
@@ -823,11 +825,12 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
       print('🔍 Iniciando busca de registros para vaca: ${widget.vaca['id']}');
       print('🔍 User ID: ${user.uid}');
 
-      // Buscar todos os registros desta vaca
+      // Buscar todos os registros desta vaca na subcoleção correta
       final snapshot = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
           .collection('registros_producao')
-          .where('userId', isEqualTo: user.uid)
-          .where('vacaId', isEqualTo: widget.vaca['id'])
+          .where('vaca_id', isEqualTo: widget.vaca['id'])
           .get();
 
       print('🔍 Total de registros encontrados: ${snapshot.docs.length}');
@@ -840,7 +843,7 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
         final data = {...doc.data(), 'id': doc.id};
         final tipo = data['tipo'] as String?;
         
-        print('🔍 Registro encontrado - Tipo: $tipo, Data: ${data['dataHora']}, VacaId: ${data['vacaId']}');
+        print('🔍 Registro encontrado - Tipo: $tipo, Data: ${data['data']}, VacaId: ${data['vaca_id']}');
 
         switch (tipo) {
           case 'Leite':
@@ -871,8 +874,8 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
       List<Map<String, dynamic>> historicoPeso = [];
       for (var doc in historicoPesoSnapshot.docs) {
         final data = {...doc.data(), 'id': doc.id};
-        // Filtrar por vacaId no lado do cliente
-        if (data['vacaId'] == widget.vaca['id']) {
+        // Filtrar por vaca_id no lado do cliente
+        if (data['vaca_id'] == widget.vaca['id']) {
           historicoPeso.add(data);
         }
       }
@@ -1149,7 +1152,9 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
             itemCount: _registrosProducao.length,
             itemBuilder: (context, index) {
               final registro = _registrosProducao[index];
-              final dataHora = (registro['dataHora'] as Timestamp).toDate();
+              final data = registro['data'];
+              if (data == null) return const SizedBox(); // Pular registros sem data
+              final dataHora = (data as Timestamp).toDate();
               final quantidade = (registro['quantidade'] as num?)?.toDouble() ?? 0;
 
               return ListTile(
@@ -1187,7 +1192,9 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
       itemCount: _registrosSaude.length,
       itemBuilder: (context, index) {
         final registro = _registrosSaude[index];
-        final dataHora = (registro['dataHora'] as Timestamp).toDate();
+        final data = registro['data'];
+        if (data == null) return const SizedBox(); // Pular registros sem data
+        final dataHora = (data as Timestamp).toDate();
         final observacao = registro['observacao'] ?? '';
 
         return Card(
@@ -1225,7 +1232,9 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
       itemCount: _registrosCiclo.length,
       itemBuilder: (context, index) {
         final registro = _registrosCiclo[index];
-        final dataHora = (registro['dataHora'] as Timestamp).toDate();
+        final data = registro['data'];
+        if (data == null) return const SizedBox(); // Pular registros sem data
+        final dataHora = (data as Timestamp).toDate();
         final periodoCiclo = registro['periodoCiclo'] ?? '';
         final observacao = registro['observacao'] ?? '';
 

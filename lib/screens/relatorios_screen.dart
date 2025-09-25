@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,8 +7,11 @@ import 'package:provider/provider.dart';
 import '../services/user_service.dart';
 import '../widgets/upgrade_prompt_widget.dart';
 
+// Chave global para acessar o estado dos relatórios
+final GlobalKey<_RelatoriosScreenState> relatoriosScreenKey = GlobalKey<_RelatoriosScreenState>();
+
 class RelatoriosScreen extends StatefulWidget {
-  const RelatoriosScreen({super.key});
+  RelatoriosScreen({Key? key}) : super(key: key ?? relatoriosScreenKey);
 
   @override
   State<RelatoriosScreen> createState() => _RelatoriosScreenState();
@@ -18,6 +22,7 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
   DateTime _dataInicio = DateTime.now().subtract(const Duration(days: 30));
   DateTime _dataFim = DateTime.now();
   bool _isLoading = false;
+  Timer? _timer;
   
   // Dados dos relatórios
   double _producaoTotal = 0;
@@ -33,28 +38,68 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
       final subscription = Provider.of<UserSubscription>(context, listen: false);
       if (subscription.hasRelatoriosAvancados) {
         _carregarDados();
+        
+        // Recarregar dados a cada 30 segundos para capturar novos registros
+        _timer = Timer.periodic(const Duration(seconds: 30), (timer) {
+          if (mounted) {
+            print('🔄 [RELATÓRIOS] Recarregamento automático...');
+            _carregarDados();
+          }
+        });
       }
     });
   }
 
+  // Método público para recarregar os dados
+  void recarregarDados() {
+    print('🔄 [RELATÓRIOS] Recarregamento forçado solicitado');
+    _carregarDados();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _carregarDados() async {
+    print('📊 [RELATÓRIOS] Iniciando carregamento dos dados...');
     setState(() => _isLoading = true);
     
     try {
       final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId == null) return;
+      if (userId == null) {
+        print('❌ [RELATÓRIOS] Usuário não autenticado');
+        return;
+      }
+      
+      print('✅ [RELATÓRIOS] Usuário ID: $userId');
+      print('📅 [RELATÓRIOS] Período: ${_dataInicio} até ${_dataFim}');
 
-      // Buscar dados de produção
+      // Buscar dados de produção com consulta simplificada para evitar índice composto
       final query = FirebaseFirestore.instance
           .collection('usuarios')
           .doc(userId)
           .collection('registros_producao')
           .where('data', isGreaterThanOrEqualTo: Timestamp.fromDate(_dataInicio))
-          .where('data', isLessThanOrEqualTo: Timestamp.fromDate(_dataFim))
-          .where('tipo', isEqualTo: 'Leite');
+          .where('data', isLessThanOrEqualTo: Timestamp.fromDate(_dataFim));
 
       final snapshot = await query.get();
-      final registros = snapshot.docs.map((doc) => doc.data()).toList();
+      print('📝 [RELATÓRIOS] Total de documentos encontrados: ${snapshot.docs.length}');
+      
+      // Log dos dados encontrados
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        print('📄 [RELATÓRIOS] Doc: ${doc.id} - Tipo: ${data['tipo']} - Data: ${data['data']} - Quantidade: ${data['quantidade']}');
+      }
+      
+      // Filtrar por tipo 'Leite' no código para evitar índice composto
+      final registros = snapshot.docs
+          .map((doc) => doc.data())
+          .where((registro) => registro['tipo'] == 'Leite')
+          .toList();
+
+      print('🥛 [RELATÓRIOS] Registros de leite filtrados: ${registros.length}');
 
       // Calcular métricas
       double producaoTotal = 0;
@@ -67,31 +112,77 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
         final data = (registro['data'] as Timestamp).toDate();
         final dataKey = '${data.day}/${data.month}';
 
+        print('📈 [RELATÓRIOS] Processando: Vaca $vacaId - Quantidade: ${quantidade}L - Data: $dataKey');
+
         producaoTotal += quantidade;
         producaoVacas[vacaId] = (producaoVacas[vacaId] ?? 0) + quantidade;
         producaoTemporal[dataKey] = (producaoTemporal[dataKey] ?? 0) + quantidade;
       }
+
+      print('💯 [RELATÓRIOS] Produção total calculada: ${producaoTotal}L');
+      print('🐄 [RELATÓRIOS] Vacas únicas: ${producaoVacas.keys.length}');
 
       // Buscar nomes das vacas
       final vacasIds = producaoVacas.keys.toList();
       final vacasData = <String, String>{};
       
       if (vacasIds.isNotEmpty) {
-        final vacasQuery = await FirebaseFirestore.instance
-            .collection('usuarios')
-            .doc(userId)
-            .collection('vacas')
-            .where(FieldPath.documentId, whereIn: vacasIds)
-            .get();
+        print('🔍 [RELATÓRIOS] Buscando nomes das vacas: $vacasIds');
+        
+        // Buscar cada vaca individualmente para evitar problemas com whereIn
+        for (String vacaId in vacasIds) {
+          try {
+            // Primeiro, tentar na subcoleção do usuário
+            final docUser = await FirebaseFirestore.instance
+                .collection('usuarios')
+                .doc(userId)
+                .collection('vacas')
+                .doc(vacaId)
+                .get();
+                
+            if (docUser.exists && docUser.data() != null) {
+              vacasData[vacaId] = docUser.data()!['nome'] ?? 'Sem nome';
+              print('🐮 [RELATÓRIOS] Vaca encontrada (subcoleção): $vacaId = ${vacasData[vacaId]}');
+              continue;
+            }
             
-        for (var doc in vacasQuery.docs) {
-          vacasData[doc.id] = doc.data()['nome'] ?? 'Sem nome';
+            // Se não encontrou na subcoleção, buscar na coleção global
+            final docGlobal = await FirebaseFirestore.instance
+                .collection('vacas')
+                .doc(vacaId)
+                .get();
+                
+            if (docGlobal.exists && docGlobal.data() != null) {
+              final data = docGlobal.data()!;
+              // Verificar se a vaca pertence ao usuário atual
+              if (data['userId'] == userId) {
+                vacasData[vacaId] = data['nome'] ?? 'Sem nome';
+                print('🐮 [RELATÓRIOS] Vaca encontrada (global): $vacaId = ${vacasData[vacaId]}');
+              }
+            }
+            
+            // Se ainda não encontrou, usar um nome padrão mais amigável
+            if (!vacasData.containsKey(vacaId)) {
+              vacasData[vacaId] = 'Vaca ${vacaId.substring(0, 8)}...';
+              print('⚠️ [RELATÓRIOS] Vaca não encontrada, usando nome padrão: $vacaId = ${vacasData[vacaId]}');
+            }
+          } catch (e) {
+            print('❌ [RELATÓRIOS] Erro ao buscar vaca $vacaId: $e');
+            vacasData[vacaId] = 'Vaca ${vacaId.substring(0, 8)}...';
+          }
         }
       }
 
+      final mediaProducao = registros.isNotEmpty ? (producaoTotal / registros.length).toDouble() : 0.0;
+      
+      print('📊 [RELATÓRIOS] Atualizando estado com:');
+      print('  - Produção total: ${producaoTotal}L');
+      print('  - Média por registro: ${mediaProducao}L');
+      print('  - Total de vacas: ${producaoVacas.length}');
+
       setState(() {
         _producaoTotal = producaoTotal;
-        _mediaProducao = registros.isNotEmpty ? producaoTotal / registros.length : 0;
+        _mediaProducao = mediaProducao;
         _totalVacas = producaoVacas.length;
         
         _producaoVacas = producaoVacas.entries.map((e) => {
@@ -104,13 +195,32 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
           'producao': e.value,
         }).toList()..sort((a, b) => (a['data'] as String).compareTo(b['data'] as String));
       });
+      
+      print('✅ [RELATÓRIOS] Estado atualizado com sucesso!');
     } catch (e) {
-      // AppLogger.log('Erro ao carregar dados dos relatórios: $e', prefix: 'RELATORIOS_ERROR');
+      print('Erro ao carregar dados dos relatórios: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar dados: $e')),
+          SnackBar(
+            content: Text('Erro ao carregar relatórios. Tente novamente.'),
+            backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: 'Tentar novamente',
+              textColor: Colors.white,
+              onPressed: _carregarDados,
+            ),
+          ),
         );
       }
+      
+      // Definir valores padrão em caso de erro
+      setState(() {
+        _producaoTotal = 0;
+        _mediaProducao = 0;
+        _totalVacas = 0;
+        _producaoVacas = [];
+        _producaoTemporal = [];
+      });
     } finally {
       setState(() => _isLoading = false);
     }

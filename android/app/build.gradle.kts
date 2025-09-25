@@ -24,7 +24,7 @@ android {
         // ID único para a Google Play Store
         applicationId = "com.fazenda.leitemais"
         // Configurações de versão
-        minSdk = 21
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = 1
         versionName = "1.0.0"

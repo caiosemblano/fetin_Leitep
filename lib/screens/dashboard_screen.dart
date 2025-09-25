@@ -18,7 +18,7 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver {
   String _selectedChart = 'Produção';
 
   // Dados do Firebase
@@ -33,7 +33,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadDashboardData();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Recarregar dados quando o app volta ao foco
+      AppLogger.info('📊 [DASHBOARD] App resumido, recarregando dados');
+      _loadDashboardData();
+    }
   }
 
   Future<void> _loadDashboardData() async {
@@ -101,6 +118,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       throw Exception('Usuário não autenticado');
     }
 
+    AppLogger.info('📊 [DASHBOARD] Carregando dados de produção para usuário: ${user.uid}');
+
     // Primeiro, buscar IDs das vacas ativas do usuário
     final vacasSnapshot = await FirebaseFirestore.instance
         .collection('vacas')
@@ -108,12 +127,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .get();
 
     final vacasAtivas = vacasSnapshot.docs.map((doc) => doc.id).toSet();
+    AppLogger.info('📊 [DASHBOARD] Vacas ativas encontradas: ${vacasAtivas.length}');
 
-    // Consulta simplificada - apenas por userId primeiro
+    // Consulta simplificada - buscar na subcoleção do usuário
     final snapshot = await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(user.uid)
         .collection('registros_producao')
-        .where('userId', isEqualTo: user.uid)
         .get();
+
+    AppLogger.info('📊 [DASHBOARD] Total de registros encontrados: ${snapshot.docs.length}');
 
     // Agrupar por dia da semana
     Map<String, double> producaoPorDia = {
@@ -129,38 +152,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
     List<String> diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     double totalProducao = 0.0;
     int totalRegistros = 0;
+    int registrosProcessados = 0;
+    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
 
     for (var doc in snapshot.docs) {
       final data = doc.data();
-      final vacaId = data['vacaId'] as String;
+      final vacaId = data['vaca_id'] as String?; // CORRIGIDO: usar nome correto do campo
       final tipo = data['tipo'] as String?;
-      final dataHora = (data['dataHora'] as Timestamp).toDate();
+      final dataHora = (data['data'] as Timestamp?)?.toDate(); // CORRIGIDO: usar nome correto do campo
+
+      AppLogger.info('📊 [DASHBOARD] Processando registro: VacaID=${vacaId}, Tipo=${tipo}, Data=${dataHora}');
 
       // Filtros aplicados no cliente para evitar índices complexos
-      // 1. Só processar se a vaca ainda existir
-      if (!vacasAtivas.contains(vacaId)) {
+      // 1. Só processar se a vaca ainda existir (TEMPORARIAMENTE DESABILITADO PARA DEBUG)
+      if (vacaId == null) {
+        AppLogger.info('📊 [DASHBOARD] Registro ignorado: vacaId é null');
         continue;
       }
 
       // 2. Só processar registros de leite
       if (tipo != 'Leite') {
+        AppLogger.info('📊 [DASHBOARD] Registro ignorado: não é leite (${tipo})');
         continue;
       }
 
       // 3. Só processar registros dos últimos 7 dias
-      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
-      if (dataHora.isBefore(sevenDaysAgo)) {
+      if (dataHora == null || dataHora.isBefore(sevenDaysAgo)) {
+        AppLogger.info('📊 [DASHBOARD] Registro ignorado: muito antigo');
         continue;
       }
 
-      final quantidade = (data['quantidade'] as num).toDouble();
+      final quantidade = (data['quantidade'] as num?)?.toDouble() ?? 0.0;
+      AppLogger.info('📊 [DASHBOARD] Registro processado: ${quantidade}L');
 
       final diaSemana = diasSemana[dataHora.weekday % 7];
       producaoPorDia[diaSemana] = producaoPorDia[diaSemana]! + quantidade;
 
       totalProducao += quantidade;
       totalRegistros++;
+      registrosProcessados++;
     }
+
+    AppLogger.info('📊 [DASHBOARD] Registros processados: ${registrosProcessados}/${snapshot.docs.length}');
+    AppLogger.info('📊 [DASHBOARD] Produção total: ${totalProducao}L');
 
     // Calcular média diária
     final mediaDiaria = totalRegistros > 0 ? totalProducao / 7 : 0.0;
@@ -171,6 +205,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .map((entry) => ChartData(entry.key, entry.value))
           .toList();
     });
+
+    AppLogger.info('📊 [DASHBOARD] Média diária calculada: ${mediaDiaria}L');
   }
 
   Future<void> _loadSaudeData() async {
@@ -180,16 +216,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     try {
-      // Buscar registros de saúde dos últimos 6 meses
-      final sixMonthsAgo = DateTime.now().subtract(const Duration(days: 180));
+      AppLogger.info('🏥 [DASHBOARD] Carregando dados de saúde');
       
+      // Buscar todos os registros para filtrar no cliente (evitar índices compostos)
       final snapshot = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
           .collection('registros_producao')
-          .where('userId', isEqualTo: user.uid)
-          .where('tipo', isEqualTo: 'Saúde')
-          .where('dataHora', isGreaterThan: Timestamp.fromDate(sixMonthsAgo))
-          .orderBy('dataHora', descending: false)
           .get();
+
+      AppLogger.info('🏥 [DASHBOARD] Total de registros encontrados: ${snapshot.docs.length}');
 
       // Agrupar por mês
       Map<String, int> saudePorMes = {
@@ -199,15 +235,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       final mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
                           'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      
+      final sixMonthsAgo = DateTime.now().subtract(const Duration(days: 180));
+      int registrosSaudeProcessados = 0;
 
       for (var doc in snapshot.docs) {
         final data = doc.data();
-        final dataHora = (data['dataHora'] as Timestamp).toDate();
-        final mesIndex = dataHora.month - 1;
-        final mesNome = mesesNomes[mesIndex];
+        final tipo = data['tipo'] as String?;
+        final dataHora = (data['data'] as Timestamp?)?.toDate(); // CORRIGIDO: usar nome correto do campo
         
-        saudePorMes[mesNome] = saudePorMes[mesNome]! + 1;
+        // Filtrar no cliente
+        if (tipo != 'Saúde' || dataHora == null || dataHora.isBefore(sixMonthsAgo)) {
+          continue;
+        }
+        
+        final mesIndex = dataHora.month - 1;
+        if (mesIndex >= 0 && mesIndex < mesesNomes.length) {
+          final mesNome = mesesNomes[mesIndex];
+          saudePorMes[mesNome] = saudePorMes[mesNome]! + 1;
+          registrosSaudeProcessados++;
+        }
       }
+
+      AppLogger.info('🏥 [DASHBOARD] Registros de saúde processados: $registrosSaudeProcessados');
 
       // Pegar apenas os últimos 6 meses
       final agora = DateTime.now();
@@ -216,11 +266,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       for (int i = 5; i >= 0; i--) {
         final mes = DateTime(agora.year, agora.month - i);
         final mesIndex = mes.month - 1;
-        final mesNome = mesesNomes[mesIndex];
-        final quantidade = saudePorMes[mesNome] ?? 0;
-        
-        dadosGrafico.add(ChartData(mesNome, quantidade.toDouble()));
+        if (mesIndex >= 0 && mesIndex < mesesNomes.length) {
+          final mesNome = mesesNomes[mesIndex];
+          final quantidade = saudePorMes[mesNome] ?? 0;
+          
+          dadosGrafico.add(ChartData(mesNome, quantidade.toDouble()));
+        }
       }
+
+      AppLogger.info('🏥 [DASHBOARD] Dados do gráfico de saúde: ${dadosGrafico.map((d) => '${d.x}: ${d.y}').join(', ')}');
 
       setState(() {
         _saudeData = dadosGrafico;
@@ -262,9 +316,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         
         // Buscar o último registro de ciclo desta vaca
         final registroQuery = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(user.uid)
             .collection('registros_producao')
-            .where('userId', isEqualTo: user.uid)
-            .where('vacaId', isEqualTo: vacaId)
+            .where('vaca_id', isEqualTo: vacaId) // CORRIGIDO: usar nome correto do campo
             .where('tipo', isEqualTo: 'Ciclo')
             .limit(1)
             .get();
