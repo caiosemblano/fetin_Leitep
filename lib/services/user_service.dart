@@ -25,6 +25,64 @@ class UserSubscription {
   bool get hasIntermediateAccess => plan == 'intermediario' || plan == 'premium';
   bool get hasPremiumAccess => plan == 'premium';
   bool hasModule(String moduleName) => modules.contains(moduleName);
+  
+  // Limitações por plano
+  int get maxVacas {
+    switch (plan) {
+      case 'basic':
+        return 5;
+      case 'intermediario':
+        return 50;
+      case 'premium':
+        return -1; // Ilimitado
+      default:
+        return 5;
+    }
+  }
+  
+  int get maxRegistrosProducaoPorMes {
+    switch (plan) {
+      case 'basic':
+        return 30; // 1 por dia
+      case 'intermediario':
+        return 300; // ~10 por dia
+      case 'premium':
+        return -1; // Ilimitado
+      default:
+        return 30;
+    }
+  }
+  
+  bool get hasFinanceiroAccess => hasIntermediateAccess;
+  bool get hasRelatoriosAvancados => hasIntermediateAccess;
+  bool get hasBackupAutomatico => hasIntermediateAccess;
+  bool get hasAnalisesPreditivas => hasPremiumAccess;
+  bool get hasSuportePrioritario => hasPremiumAccess;
+  bool get hasConsultoriaEspecializada => hasPremiumAccess;
+  
+  // Verificar se pode adicionar mais vacas
+  bool canAddMoreCows(int currentCount) {
+    if (maxVacas == -1) return true; // Ilimitado
+    return currentCount < maxVacas;
+  }
+  
+  // Verificar se pode fazer mais registros de produção
+  bool canAddMoreProductionRecords(int currentMonthCount) {
+    if (maxRegistrosProducaoPorMes == -1) return true; // Ilimitado
+    return currentMonthCount < maxRegistrosProducaoPorMes;
+  }
+  
+  // Mensagem de upgrade para funcionalidade bloqueada
+  String getUpgradeMessage(String feature) {
+    switch (plan) {
+      case 'basic':
+        return 'Esta funcionalidade está disponível no plano Intermediário (R\$ 59,90/mês) ou Premium (R\$ 109,90/mês).';
+      case 'intermediario':
+        return 'Esta funcionalidade está disponível apenas no plano Premium (R\$ 109,90/mês).';
+      default:
+        return 'Upgrade necessário para acessar esta funcionalidade.';
+    }
+  }
 }
 
 class UserService {

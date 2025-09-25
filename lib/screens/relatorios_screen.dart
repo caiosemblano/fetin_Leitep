@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../utils/app_logger.dart';
+import 'package:provider/provider.dart';
+import '../services/user_service.dart';
+import '../widgets/upgrade_prompt_widget.dart';
 
 class RelatoriosScreen extends StatefulWidget {
   const RelatoriosScreen({super.key});
@@ -15,135 +17,101 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
   String _periodoSelecionado = 'mensal';
   DateTime _dataInicio = DateTime.now().subtract(const Duration(days: 30));
   DateTime _dataFim = DateTime.now();
-
-  // Dados reais do Firebase
-  bool _isLoading = true;
-  double _producaoTotal = 0.0;
-  double _mediaDiaria = 0.0;
-  String _melhorVaca = 'Nenhuma';
-  double _eficiencia = 0.0;
+  bool _isLoading = false;
+  
+  // Dados dos relatórios
+  double _producaoTotal = 0;
+  double _mediaProducao = 0;
+  int _totalVacas = 0;
   List<Map<String, dynamic>> _producaoVacas = [];
+  List<Map<String, dynamic>> _producaoTemporal = [];
 
   @override
   void initState() {
     super.initState();
-    _carregarDados();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final subscription = Provider.of<UserSubscription>(context, listen: false);
+      if (subscription.hasRelatoriosAvancados) {
+        _carregarDados();
+      }
+    });
   }
 
   Future<void> _carregarDados() async {
     setState(() => _isLoading = true);
-
+    
     try {
-      final firestore = FirebaseFirestore.instance;
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) return;
 
-      // Verificar autenticação
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw Exception('Usuário não autenticado');
-      }
-
-      // Buscar todas as produções no período
-      final producoes = await firestore
+      // Buscar dados de produção
+      final query = FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(userId)
           .collection('registros_producao')
-          .where('userId', isEqualTo: user.uid)
-          .where('tipo', isEqualTo: 'Leite')
-          .where(
-            'dataHora',
-            isGreaterThanOrEqualTo: Timestamp.fromDate(_dataInicio),
-          )
-          .where('dataHora', isLessThanOrEqualTo: Timestamp.fromDate(_dataFim))
-          .get();
+          .where('data', isGreaterThanOrEqualTo: Timestamp.fromDate(_dataInicio))
+          .where('data', isLessThanOrEqualTo: Timestamp.fromDate(_dataFim))
+          .where('tipo', isEqualTo: 'Leite');
 
-      if (producoes.docs.isEmpty) {
-        // Mostrar mensagem específica sobre ausência de dados
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '📊 Nenhum registro de produção encontrado no período de '
-                '${_dataInicio.day}/${_dataInicio.month}/${_dataInicio.year} a '
-                '${_dataFim.day}/${_dataFim.month}/${_dataFim.year}',
-              ),
-              backgroundColor: Colors.blue,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-        
-        setState(() {
-          _producaoTotal = 0;
-          _mediaDiaria = 0;
-          _melhorVaca = 'Nenhum dado no período';
-          _eficiencia = 0;
-          _producaoVacas = [];
-          _isLoading = false;
-        });
-        return;
-      }
+      final snapshot = await query.get();
+      final registros = snapshot.docs.map((doc) => doc.data()).toList();
 
       // Calcular métricas
-      double total = 0;
-      Map<String, double> producaoPorVaca = {};
-      Map<String, String> nomeVacas = {};
+      double producaoTotal = 0;
+      Map<String, double> producaoVacas = {};
+      Map<String, double> producaoTemporal = {};
 
-      // Buscar nomes das vacas primeiro
-      final vacas = await firestore.collection('vacas').get();
-      for (var doc in vacas.docs) {
-        nomeVacas[doc.id] = doc.data()['nome'] ?? 'Sem nome';
+      for (var registro in registros) {
+        final quantidade = (registro['quantidade'] as num).toDouble();
+        final vacaId = registro['vaca_id'] as String;
+        final data = (registro['data'] as Timestamp).toDate();
+        final dataKey = '${data.day}/${data.month}';
+
+        producaoTotal += quantidade;
+        producaoVacas[vacaId] = (producaoVacas[vacaId] ?? 0) + quantidade;
+        producaoTemporal[dataKey] = (producaoTemporal[dataKey] ?? 0) + quantidade;
       }
 
-      for (var doc in producoes.docs) {
-        final data = doc.data();
-        // Verificar se é um registro de leite
-        if (data['tipo'] != 'Leite') continue;
-
-        final quantidade = (data['quantidade'] as num?)?.toDouble() ?? 0;
-        final vacaId = data['vacaId'] as String?;
-
-        total += quantidade;
-
-        if (vacaId != null) {
-          final nomeVaca = nomeVacas[vacaId] ?? 'Vaca $vacaId';
-          producaoPorVaca[nomeVaca] =
-              (producaoPorVaca[nomeVaca] ?? 0) + quantidade;
+      // Buscar nomes das vacas
+      final vacasIds = producaoVacas.keys.toList();
+      final vacasData = <String, String>{};
+      
+      if (vacasIds.isNotEmpty) {
+        final vacasQuery = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(userId)
+            .collection('vacas')
+            .where(FieldPath.documentId, whereIn: vacasIds)
+            .get();
+            
+        for (var doc in vacasQuery.docs) {
+          vacasData[doc.id] = doc.data()['nome'] ?? 'Sem nome';
         }
       }
-
-      // Média diária
-      final dias = _dataFim.difference(_dataInicio).inDays + 1;
-      final media = dias > 0 ? total / dias : 0.0;
-
-      // Melhor vaca
-      String melhorVaca = 'Nenhuma';
-      double maiorProducao = 0;
-      producaoPorVaca.forEach((nome, producao) {
-        if (producao > maiorProducao) {
-          maiorProducao = producao;
-          melhorVaca = '$nome (${producao.toStringAsFixed(1)}L)';
-        }
-      });
-
-      // Eficiência (simulada com base na produção)
-      double eficiencia = total > 0
-          ? (total / (vacas.docs.length * dias * 30)) * 100
-          : 0;
-      if (eficiencia > 100) eficiencia = 100;
-
-      // Lista para o gráfico
-      final producaoVacas = producaoPorVaca.entries
-          .map((entry) => {'vaca': entry.key, 'producao': entry.value})
-          .toList();
 
       setState(() {
-        _producaoTotal = total;
-        _mediaDiaria = media;
-        _melhorVaca = melhorVaca;
-        _eficiencia = eficiencia;
-        _producaoVacas = producaoVacas;
-        _isLoading = false;
+        _producaoTotal = producaoTotal;
+        _mediaProducao = registros.isNotEmpty ? producaoTotal / registros.length : 0;
+        _totalVacas = producaoVacas.length;
+        
+        _producaoVacas = producaoVacas.entries.map((e) => {
+          'vaca': vacasData[e.key] ?? 'Vaca ${e.key}',
+          'producao': e.value,
+        }).toList();
+        
+        _producaoTemporal = producaoTemporal.entries.map((e) => {
+          'data': e.key,
+          'producao': e.value,
+        }).toList()..sort((a, b) => (a['data'] as String).compareTo(b['data'] as String));
       });
     } catch (e) {
-      AppLogger.error('Erro ao carregar dados dos relatórios', e);
+      // AppLogger.log('Erro ao carregar dados dos relatórios: $e', prefix: 'RELATORIOS_ERROR');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar dados: $e')),
+        );
+      }
+    } finally {
       setState(() => _isLoading = false);
     }
   }
@@ -165,9 +133,9 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
       if (novaDataInicio.isAfter(novaDataFim)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⚠️ A data de início deve ser anterior à data de fim'),
-              backgroundColor: Colors.orange,
+            SnackBar(
+              content: const Text('⚠️ A data de início deve ser anterior à data de fim'),
+              backgroundColor: Theme.of(context).colorScheme.tertiary,
             ),
           );
         }
@@ -179,9 +147,9 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
       if (diferenca > 730) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⚠️ Período muito longo (máximo 2 anos)'),
-              backgroundColor: Colors.orange,
+            SnackBar(
+              content: const Text('⚠️ Período muito longo (máximo 2 anos)'),
+              backgroundColor: Theme.of(context).colorScheme.tertiary,
             ),
           );
         }
@@ -196,198 +164,225 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
         }
       });
       
-      await _carregarDados(); // Recarregar dados com novo período
+      // Recarregar dados com novo período
+      final subscription = Provider.of<UserSubscription>(context, listen: false);
+      if (subscription.hasRelatoriosAvancados) {
+        _carregarDados();
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Relatórios'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _carregarDados,
+    return Consumer<UserSubscription>(
+      builder: (context, subscription, _) {
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Relatórios'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: subscription.hasRelatoriosAvancados ? _carregarDados : null,
+              ),
+              IconButton(
+                icon: const Icon(Icons.info_outline),
+                onPressed: () => _showPlanInfo(context, subscription),
+              ),
+            ],
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Filtros
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withValues(alpha: 0.3),
-                  spreadRadius: 1,
-                  blurRadius: 3,
-                  offset: const Offset(0, 1),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                // Seletor de período
+          body: subscription.hasRelatoriosAvancados
+              ? _buildAdvancedReports()
+              : _buildBasicReports(subscription),
+        );
+      },
+    );
+  }
+
+  Widget _buildAdvancedReports() {
+    return Column(
+      children: [
+        // Filtros
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainer,
+            boxShadow: [
+              BoxShadow(
+                color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                spreadRadius: 1,
+                blurRadius: 3,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Seletor de período
+              Row(
+                children: [
+                  const Text(
+                    'Período: ',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Expanded(
+                    child: DropdownButton<String>(
+                      value: _periodoSelecionado,
+                      isExpanded: true,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'semanal',
+                          child: Text('Semanal'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'mensal',
+                          child: Text('Mensal'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'trimestral',
+                          child: Text('Trimestral'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'anual',
+                          child: Text('Anual'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'personalizado',
+                          child: Text('Personalizado'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _periodoSelecionado = value!;
+                          switch (value) {
+                            case 'semanal':
+                              _dataInicio = DateTime.now().subtract(
+                                const Duration(days: 7),
+                              );
+                              break;
+                            case 'mensal':
+                              _dataInicio = DateTime.now().subtract(
+                                const Duration(days: 30),
+                              );
+                              break;
+                            case 'trimestral':
+                              _dataInicio = DateTime.now().subtract(
+                                const Duration(days: 90),
+                              );
+                              break;
+                            case 'anual':
+                              _dataInicio = DateTime.now().subtract(
+                                const Duration(days: 365),
+                              );
+                              break;
+                          }
+                          _dataFim = DateTime.now();
+                        });
+                        _carregarDados();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              
+              // Seletor de datas personalizadas
+              if (_periodoSelecionado == 'personalizado') ...[
+                const SizedBox(height: 16),
                 Row(
                   children: [
-                    const Text(
-                      'Período: ',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
                     Expanded(
-                      child: DropdownButton<String>(
-                        value: _periodoSelecionado,
-                        isExpanded: true,
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'semanal',
-                            child: Text('Semanal'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'mensal',
-                            child: Text('Mensal'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'trimestral',
-                            child: Text('Trimestral'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'anual',
-                            child: Text('Anual'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'personalizado',
-                            child: Text('Personalizado'),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            _periodoSelecionado = value!;
-                            switch (value) {
-                              case 'semanal':
-                                _dataInicio = DateTime.now().subtract(
-                                  const Duration(days: 7),
-                                );
-                                break;
-                              case 'mensal':
-                                _dataInicio = DateTime.now().subtract(
-                                  const Duration(days: 30),
-                                );
-                                break;
-                              case 'trimestral':
-                                _dataInicio = DateTime.now().subtract(
-                                  const Duration(days: 90),
-                                );
-                                break;
-                              case 'anual':
-                                _dataInicio = DateTime.now().subtract(
-                                  const Duration(days: 365),
-                                );
-                                break;
-                            }
-                            _dataFim = DateTime.now();
-                          });
-                          _carregarDados();
-                        },
+                      child: OutlinedButton(
+                        onPressed: () => _selecionarData(true),
+                        child: Text('Início: ${_dataInicio.day}/${_dataInicio.month}/${_dataInicio.year}'),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => _selecionarData(false),
+                        child: Text('Fim: ${_dataFim.day}/${_dataFim.month}/${_dataFim.year}'),
                       ),
                     ),
                   ],
                 ),
-
-                // Datas personalizadas
-                if (_periodoSelecionado == 'personalizado') ...[
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          decoration: const InputDecoration(
-                            labelText: 'Data Início',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.calendar_today),
-                          ),
-                          readOnly: true,
-                          controller: TextEditingController(
-                            text: '${_dataInicio.day.toString().padLeft(2, '0')}/'
-                                  '${_dataInicio.month.toString().padLeft(2, '0')}/'
-                                  '${_dataInicio.year}',
-                          ),
-                          onTap: () => _selecionarData(true),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: TextFormField(
-                          decoration: const InputDecoration(
-                            labelText: 'Data Fim',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.calendar_today),
-                          ),
-                          readOnly: true,
-                          controller: TextEditingController(
-                            text: '${_dataFim.day.toString().padLeft(2, '0')}/'
-                                  '${_dataFim.month.toString().padLeft(2, '0')}/'
-                                  '${_dataFim.year}',
-                          ),
-                          onTap: () => _selecionarData(false),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Período: ${_dataFim.difference(_dataInicio).inDays + 1} dias',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ],
               ],
-            ),
+            ],
           ),
-
-          // Cards de métricas
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : ListView(
-                    children: [
-                      _buildMetricaCard(
-                        'Produção Total',
-                        '${_producaoTotal.toStringAsFixed(1)} L',
-                        Icons.opacity,
-                        Colors.blue,
-                      ),
-                      _buildMetricaCard(
-                        'Média Diária',
-                        '${_mediaDiaria.toStringAsFixed(1)} L',
-                        Icons.timeline,
-                        Colors.green,
-                      ),
-                      _buildMetricaCard(
-                        'Melhor Vaca',
-                        _melhorVaca,
-                        Icons.star,
-                        Colors.orange,
-                      ),
-                      _buildMetricaCard(
-                        'Eficiência',
-                        '${_eficiencia.toStringAsFixed(1)}%',
-                        Icons.trending_up,
-                        Colors.purple,
-                      ),
-
-                      // Gráfico de produção por vaca
+        ),
+        
+        // Conteúdo principal
+        Expanded(
+          child: _isLoading 
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                child: Column(
+                  children: [
+                    // Cards de métricas
+                    _buildMetricaCard(
+                      'Produção Total',
+                      '${_producaoTotal.toStringAsFixed(2)}L',
+                      Icons.water_drop,
+                      Colors.blue,
+                    ),
+                    _buildMetricaCard(
+                      'Média por Ordenha',
+                      '${_mediaProducao.toStringAsFixed(2)}L',
+                      Icons.analytics,
+                      Colors.green,
+                    ),
+                    _buildMetricaCard(
+                      'Total de Vacas',
+                      _totalVacas.toString(),
+                      Icons.pets,
+                      Colors.orange,
+                    ),
+                    
+                    const SizedBox(height: 20),
+                    
+                    // Gráfico de produção temporal
+                    if (_producaoTemporal.isNotEmpty) ...[
                       Card(
                         margin: const EdgeInsets.all(16),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Produção por Período',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                height: 300,
+                                child: SfCartesianChart(
+                                  primaryXAxis: CategoryAxis(),
+                                  tooltipBehavior: TooltipBehavior(enable: true),
+                                  series: <CartesianSeries>[
+                                    LineSeries<Map<String, dynamic>, String>(
+                                      dataSource: _producaoTemporal,
+                                      xValueMapper: (data, _) => data['data'],
+                                      yValueMapper: (data, _) => data['producao'],
+                                      color: Colors.blue,
+                                      width: 3,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    
+                    // Gráfico de produção por vaca
+                    if (_producaoVacas.isNotEmpty) ...[
+                      Card(
+                        margin: const EdgeInsets.all(16),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
                             children: [
                               const Text(
                                 'Produção por Vaca',
@@ -399,43 +394,29 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
                               const SizedBox(height: 16),
                               SizedBox(
                                 height: 300,
-                                child: _producaoVacas.isEmpty
-                                    ? const Center(
-                                        child: Text('Nenhum dado disponível'),
-                                      )
-                                    : SfCartesianChart(
-                                        primaryXAxis: const CategoryAxis(),
-                                        title: ChartTitle(
-                                          text: 'Produção Individual',
-                                        ),
-                                        legend: Legend(isVisible: false),
-                                        tooltipBehavior: TooltipBehavior(
-                                          enable: true,
-                                        ),
-                                        series: <CartesianSeries>[
-                                          ColumnSeries<
-                                            Map<String, dynamic>,
-                                            String
-                                          >(
-                                            dataSource: _producaoVacas,
-                                            xValueMapper: (data, _) =>
-                                                data['vaca'],
-                                            yValueMapper: (data, _) =>
-                                                data['producao'],
-                                            color: Colors.blue,
-                                          ),
-                                        ],
-                                      ),
+                                child: SfCartesianChart(
+                                  primaryXAxis: CategoryAxis(),
+                                  tooltipBehavior: TooltipBehavior(enable: true),
+                                  series: <CartesianSeries>[
+                                    ColumnSeries<Map<String, dynamic>, String>(
+                                      dataSource: _producaoVacas,
+                                      xValueMapper: (data, _) => data['vaca'],
+                                      yValueMapper: (data, _) => data['producao'],
+                                      color: Colors.green,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
                         ),
                       ),
                     ],
-                  ),
-          ),
-        ],
-      ),
+                  ],
+                ),
+              ),
+        ),
+      ],
     );
   }
 
@@ -466,5 +447,78 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
         ),
       ),
     );
+  }
+
+  /// Relatórios básicos para plano gratuito
+  Widget _buildBasicReports(UserSubscription subscription) {
+    return const UpgradePromptWidget(
+      featureName: 'Relatórios Avançados',
+      description: 'Acesse relatórios detalhados de produção, análises comparativas, gráficos avançados e muito mais para otimizar sua fazenda.',
+      requiredPlan: 'Intermediário',
+    );
+  }
+
+  /// Mostrar informações do plano atual
+  void _showPlanInfo(BuildContext context, UserSubscription subscription) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Plano ${_getPlanDisplayName(subscription.plan)}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Acesso aos relatórios:'),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    subscription.hasRelatoriosAvancados ? Icons.check_circle : Icons.cancel,
+                    color: subscription.hasRelatoriosAvancados ? Colors.green : Colors.red,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Relatórios Avançados'),
+                ],
+              ),
+              if (!subscription.hasRelatoriosAvancados) ...[
+                const SizedBox(height: 16),
+                Text(
+                  subscription.getUpgradeMessage('relatórios avançados'),
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Fechar'),
+            ),
+            if (!subscription.hasRelatoriosAvancados)
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pushNamed('/planos');
+                },
+                child: const Text('Upgrade'),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _getPlanDisplayName(String plan) {
+    switch (plan) {
+      case 'basic':
+        return 'Básico';
+      case 'intermediario':
+        return 'Intermediário';
+      case 'premium':
+        return 'Premium';
+      default:
+        return 'Desconhecido';
+    }
   }
 }

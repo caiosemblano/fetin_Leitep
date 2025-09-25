@@ -60,7 +60,7 @@ class _SaudeScreenState extends State<SaudeScreen> {
         return Card(
           margin: const EdgeInsets.all(8),
           child: ListTile(
-            leading: const Icon(Icons.medical_services, color: Colors.red),
+            leading: Icon(Icons.medical_services, color: Theme.of(context).colorScheme.error),
             title: Text(tratamento['medicamento'] ?? ''),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -72,7 +72,7 @@ class _SaudeScreenState extends State<SaudeScreen> {
             ),
             trailing: Icon(
               tratamento['concluido'] ? Icons.check_circle : Icons.pending,
-              color: tratamento['concluido'] ? Colors.green : Colors.orange,
+              color: tratamento['concluido'] ? Theme.of(context).colorScheme.secondary : Theme.of(context).colorScheme.tertiary,
             ),
           ),
         );
@@ -88,7 +88,7 @@ class _SaudeScreenState extends State<SaudeScreen> {
         return Card(
           margin: const EdgeInsets.all(8),
           child: ListTile(
-            leading: const Icon(Icons.vaccines, color: Colors.blue),
+            leading: Icon(Icons.vaccines, color: Theme.of(context).colorScheme.primary),
             title: Text(vacinacao['vacina'] ?? ''),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

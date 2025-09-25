@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
-import 'atividades_repository.dart';
+import '../services/atividades_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/notification_service.dart';
@@ -376,7 +376,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           "Resumo da sua fazenda leiteira",
           style: Theme.of(
             context,
-          ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
+          ).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       ],
     );
@@ -391,19 +391,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           "Total de Vacas",
           _totalVacas.toString(),
           Icons.pets,
-          Colors.blue,
+          Theme.of(context).colorScheme.primary,
         ),
         _buildStatCard(
           "Vacas em Lactação",
           _vacasLactacao.toString(),
           Icons.opacity,
-          Colors.green,
+          Theme.of(context).colorScheme.secondary,
         ),
         _buildStatCard(
           "Média Diária (L)",
           _mediaProducaoDiaria.toStringAsFixed(1),
           Icons.local_drink,
-          Colors.orange,
+          Theme.of(context).colorScheme.tertiary,
         ),
         _buildNotificationCard(),
         _buildProductionAlertsCard(),
@@ -430,7 +430,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               value,
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            Text(title, style: TextStyle(color: Colors.grey[600])),
+            Text(title, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ],
         ),
       ),
@@ -462,23 +462,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Stack(
                     children: [
-                      Icon(Icons.notifications, size: 32, color: Colors.purple),
+                      Icon(Icons.notifications, size: 32, color: Theme.of(context).colorScheme.secondary),
                       if (notificationsCount > 0)
                         Positioned(
                           right: 0,
                           top: 0,
                           child: Container(
                             padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
-                              color: Colors.red,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.error,
                               shape: BoxShape.circle,
                             ),
                             child: Text(
                               notificationsCount > 9
                                   ? '9+'
                                   : notificationsCount.toString(),
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onError,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -497,7 +497,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   Text(
                     'Notificações',
-                    style: TextStyle(color: Colors.grey[600]),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -528,11 +528,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.analytics, color: Colors.red[600], size: 32),
+                  Icon(Icons.analytics, color: Theme.of(context).colorScheme.error, size: 32),
                   const SizedBox(width: 8),
                   Text(
                     'Análise\nProdução',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -543,16 +543,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   await ProductionAnalysisService.analyzeAllCowsProduction();
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Análise concluída!'),
-                        backgroundColor: Colors.green,
+                      SnackBar(
+                        content: const Text('Análise concluída!'),
+                        backgroundColor: Theme.of(context).colorScheme.secondary,
                       ),
                     );
                   }
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red[600],
-                  foregroundColor: Colors.white,
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: Theme.of(context).colorScheme.onError,
                   minimumSize: const Size(double.infinity, 32),
                 ),
                 child: const Text('Analisar', style: TextStyle(fontSize: 12)),
@@ -579,7 +579,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _selectedChart = title;
                 });
               },
-              selectedColor: Colors.blue[700],
+              selectedColor: Theme.of(context).colorScheme.primaryContainer,
             ),
           );
         }).toList(),
@@ -615,14 +615,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             SizedBox(
               height: 250,
               child: _producaoSemanal.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.bar_chart, size: 48, color: Colors.grey),
-                          SizedBox(height: 8),
-                          Text('Nenhum dado de produção disponível'),
-                          Text(
+                          Icon(Icons.bar_chart, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          const SizedBox(height: 8),
+                          const Text('Nenhum dado de produção disponível'),
+                          const Text(
                             'Registre a produção de leite para ver os gráficos',
                           ),
                         ],
@@ -635,7 +635,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           dataSource: _producaoSemanal,
                           xValueMapper: (ChartData data, _) => data.x,
                           yValueMapper: (ChartData data, _) => data.y,
-                          color: Colors.blue,
+                          color: Theme.of(context).colorScheme.primary,
                           dataLabelSettings: const DataLabelSettings(
                             isVisible: true,
                           ),
@@ -665,18 +665,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
             SizedBox(
               height: 250,
               child: _saudeData.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
                             Icons.medical_services,
                             size: 48,
-                            color: Colors.grey,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
-                          SizedBox(height: 8),
-                          Text('Nenhum dado de saúde disponível'),
-                          Text(
+                          const SizedBox(height: 8),
+                          const Text('Nenhum dado de saúde disponível'),
+                          const Text(
                             'Registre atividades de saúde para ver os gráficos',
                           ),
                         ],
@@ -689,7 +689,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           dataSource: _saudeData,
                           xValueMapper: (ChartData data, _) => data.x,
                           yValueMapper: (ChartData data, _) => data.y,
-                          color: Colors.red,
+                          color: Theme.of(context).colorScheme.error,
                           markerSettings: const MarkerSettings(isVisible: true),
                           dataLabelSettings: const DataLabelSettings(
                             isVisible: true,
@@ -698,11 +698,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ],
                     ),
             ),
-            const Padding(
-              padding: EdgeInsets.only(top: 8.0),
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
               child: Text(
                 'Número de problemas de saúde por mês',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ),
           ],
@@ -727,14 +727,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             SizedBox(
               height: 250,
               child: _cicloData.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.cable, size: 48, color: Colors.grey),
-                          SizedBox(height: 8),
-                          Text('Nenhum dado de ciclo disponível'),
-                          Text(
+                          Icon(Icons.cable, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          const SizedBox(height: 8),
+                          const Text('Nenhum dado de ciclo disponível'),
+                          const Text(
                             'Cadastre vacas com status reprodutivo para ver os gráficos',
                           ),
                         ],
@@ -747,7 +747,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           dataSource: _cicloData,
                           xValueMapper: (ChartData data, _) => data.x,
                           yValueMapper: (ChartData data, _) => data.y,
-                          color: Colors.purple,
+                          color: Theme.of(context).colorScheme.tertiary,
                           dataLabelSettings: const DataLabelSettings(
                             isVisible: true,
                           ),
@@ -755,11 +755,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ],
                     ),
             ),
-            const Padding(
-              padding: EdgeInsets.only(top: 8.0),
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
               child: Text(
                 'Status reprodutivo do rebanho',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ),
           ],
@@ -786,13 +786,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: todayActivities.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Column(
                           children: [
-                            Icon(Icons.list_alt, size: 48, color: Colors.grey),
-                            SizedBox(height: 8),
-                            Text('Nenhum registro recente'),
-                            Text('Faça registros para visualizá-los aqui'),
+                            Icon(Icons.list_alt, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                            const SizedBox(height: 8),
+                            const Text('Nenhum registro recente'),
+                            const Text('Faça registros para visualizá-los aqui'),
                           ],
                         ),
                       )

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'atividades_repository.dart';
+import '../services/atividades_repository.dart';
 
 class AtividadesScreen extends StatefulWidget {
   const AtividadesScreen({super.key});

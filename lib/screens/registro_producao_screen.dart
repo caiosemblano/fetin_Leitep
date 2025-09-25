@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
+import '../services/plan_validation_service.dart';
+import '../services/user_service.dart';
 import '../utils/app_logger.dart';
 
 class RegistroProducaoScreen extends StatefulWidget {
@@ -125,9 +128,9 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
                   margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.blue[50],
+                    color: Theme.of(context).colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue[200]!),
+                    border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
                   ),
                   child: const Row(
                     children: [
@@ -384,28 +387,32 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _submitForm,
-                  child: _isSaving
-                      ? const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
+                child: Consumer<UserSubscription>(
+                  builder: (context, subscription, _) {
+                    return ElevatedButton(
+                      onPressed: _isSaving ? null : () => _submitForm(subscription),
+                      child: _isSaving
+                          ? const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Text('Salvando...'),
-                          ],
-                        )
-                      : const Text('Salvar Registro'),
-                ),
+                                SizedBox(width: 8),
+                                Text('Salvando...'),
+                              ],
+                            )
+                          : const Text('Salvar Registro'),
+                      );
+                    },
+                  ),
               ),
             ],
           ),
@@ -440,10 +447,16 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
     }
   }
 
-  Future<void> _submitForm() async {
+  Future<void> _submitForm(UserSubscription subscription) async {
     if (!_formKey.currentState!.validate()) return;
 
     if (_isSaving) return; // Evitar duplo clique
+
+    // Verificar limitações do plano apenas para registros de produção
+    if (_selectedTipo == 'Leite') {
+      final canAdd = await PlanValidationService.canAddProductionRecord(context, subscription);
+      if (!canAdd) return;
+    }
 
     setState(() {
       _isSaving = true;

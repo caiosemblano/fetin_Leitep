@@ -4,7 +4,7 @@ import 'package:fetin/screens/auth/login_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart'; // Certifique-se que este arquivo foi gerado// Arquivo gerado automaticamente
 import 'package:provider/provider.dart';
-import 'screens/atividades_repository.dart';
+import 'services/atividades_repository.dart';
 import 'services/notification_service.dart';
 import 'services/production_analysis_service.dart';
 import 'services/animal_growth_service.dart';

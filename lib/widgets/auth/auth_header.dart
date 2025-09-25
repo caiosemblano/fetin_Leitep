@@ -30,7 +30,7 @@ class AuthHeader extends StatelessWidget {
           subtitle,
           style: TextStyle(
             fontSize: 16,
-            color: Colors.grey[600],
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: 20),

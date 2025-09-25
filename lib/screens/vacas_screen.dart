@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import '../services/orphan_cleanup_service.dart';
+import '../services/plan_validation_service.dart';
+import '../services/user_service.dart';
+import '../utils/app_logger.dart';
 
 class VacasScreen extends StatefulWidget {
   const VacasScreen({super.key});
@@ -107,10 +111,18 @@ class _VacasScreenState extends State<VacasScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: "vacas_fab",
-        onPressed: () => _showVacaForm(context),
-        child: const Icon(Icons.add),
+      floatingActionButton: Consumer<UserSubscription>(
+        builder: (context, subscription, _) {
+          return FloatingActionButton(
+            heroTag: "vacas_fab",
+            onPressed: () async {
+              if (await PlanValidationService.canAddCow(context, subscription)) {
+                _showVacaForm(context);
+              }
+            },
+            child: const Icon(Icons.add),
+          );
+        },
       ),
     );
   }
@@ -221,12 +233,13 @@ class _VacasScreenState extends State<VacasScreen> {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: InkWell(
         onTap: () => _showVacaDetails(vaca),
         child: ListTile(
           leading: CircleAvatar(
             backgroundColor: _getTypeColor(tipo),
-            child: Icon(_getTypeIcon(tipo), color: Colors.white),
+            child: Icon(_getTypeIcon(tipo), color: Theme.of(context).colorScheme.onPrimary),
           ),
           title: Row(
             children: [
@@ -235,14 +248,14 @@ class _VacasScreenState extends State<VacasScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.orange[100],
+                    color: Theme.of(context).colorScheme.secondaryContainer,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     _formatTipo(tipo),
                     style: TextStyle(
                       fontSize: 10,
-                      color: Colors.orange[800],
+                      color: Theme.of(context).colorScheme.onSecondaryContainer,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -256,20 +269,20 @@ class _VacasScreenState extends State<VacasScreen> {
               Text('Idade: ${vaca['idade']} anos'),
               Text('Peso: ${vaca['peso']} kg'),
               if (vaca['lactacao'] == true)
-                const Text('Em lactação', style: TextStyle(color: Colors.green)),
+                Text('Em lactação', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
               if (isYoung && _isReadyToPromote(vaca))
                 Container(
                   margin: const EdgeInsets.only(top: 4),
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.green[100],
+                    color: Theme.of(context).colorScheme.tertiaryContainer,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     '🎉 Pronto para ser vaca adulta!',
                     style: TextStyle(
                       fontSize: 10,
-                      color: Colors.green[800],
+                      color: Theme.of(context).colorScheme.onTertiaryContainer,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -281,16 +294,16 @@ class _VacasScreenState extends State<VacasScreen> {
             children: [
               if (isYoung && _isReadyToPromote(vaca))
                 IconButton(
-                  icon: const Icon(Icons.trending_up, color: Colors.green),
+                  icon: Icon(Icons.trending_up, color: Theme.of(context).colorScheme.tertiary),
                   tooltip: 'Promover para vaca adulta',
                   onPressed: () => _promoteAnimal(vaca),
                 ),
               IconButton(
-                icon: const Icon(Icons.edit, color: Colors.blue),
+                icon: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
                 onPressed: () => _showVacaForm(context, vaca: vaca),
               ),
               IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
+                icon: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
                 onPressed: () => _deleteVaca(vaca),
               ),
             ],
@@ -301,15 +314,16 @@ class _VacasScreenState extends State<VacasScreen> {
   }
 
   Color _getTypeColor(String tipo) {
+    final colorScheme = Theme.of(context).colorScheme;
     switch (tipo) {
       case 'bezerro':
       case 'bezerra':
-        return Colors.brown[300]!;
+        return colorScheme.secondary;
       case 'novilha':
-        return Colors.amber[600]!;
+        return colorScheme.tertiary;
       case 'vaca':
       default:
-        return Colors.blue[600]!;
+        return colorScheme.primary;
     }
   }
 
@@ -537,7 +551,7 @@ class _VacasScreenState extends State<VacasScreen> {
         .collection('historico_peso')
         .add(historicoPesoData);
     
-    print('💾 Histórico de peso salvo - Anterior: $pesoAnterior kg → Novo: $pesoNovo kg');
+    AppLogger.info('💾 Histórico de peso salvo - Anterior: $pesoAnterior kg → Novo: $pesoNovo kg');
   }
 
   Future<void> _loadVacas() async {
@@ -552,8 +566,8 @@ class _VacasScreenState extends State<VacasScreen> {
           .where('userId', isEqualTo: user.uid)
           .get();
 
-      print('Carregando vacas para o usuário: ${user.uid}');
-      print('Número de vacas encontradas: ${snapshot.docs.length}');
+      AppLogger.info('Carregando vacas para o usuário: ${user.uid}');
+      AppLogger.info('Número de vacas encontradas: ${snapshot.docs.length}');
 
       setState(() {
         _vacas.clear();
@@ -565,7 +579,7 @@ class _VacasScreenState extends State<VacasScreen> {
         _filterVacas();
       });
     } catch (e) {
-      print('Erro ao carregar vacas: $e');
+      AppLogger.error('Erro ao carregar vacas: $e');
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Erro ao carregar vacas: $e')));
@@ -583,11 +597,11 @@ class _VacasScreenState extends State<VacasScreen> {
           children: [
             Text('Deseja remover ${vaca['nome']}?'),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               '⚠️ Isso também removerá:',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: Colors.orange,
+                color: Theme.of(context).colorScheme.secondary,
               ),
             ),
             const Text('• Todos os registros de produção'),
@@ -657,7 +671,7 @@ class _VacasScreenState extends State<VacasScreen> {
                     content: Text(
                       '${vaca['nome']} e todos os registros relacionados foram removidos',
                     ),
-                    backgroundColor: Colors.green,
+                    backgroundColor: Theme.of(context).colorScheme.tertiary,
                   ),
                 );
               } catch (e) {
@@ -668,14 +682,14 @@ class _VacasScreenState extends State<VacasScreen> {
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text('Erro ao excluir: $e'),
-                    backgroundColor: Colors.red,
+                    backgroundColor: Theme.of(context).colorScheme.error,
                   ),
                 );
               }
             },
-            child: const Text(
+            child: Text(
               'Remover Tudo',
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
         ],
@@ -751,7 +765,7 @@ class _VacasScreenState extends State<VacasScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('🎉 ${animal['nome']} promovido para vaca adulta!'),
-              backgroundColor: Colors.green,
+              backgroundColor: Theme.of(context).colorScheme.tertiary,
             ),
           );
           await _loadVacas();
@@ -761,7 +775,7 @@ class _VacasScreenState extends State<VacasScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('❌ Erro ao promover animal: $e'),
-              backgroundColor: Colors.red,
+              backgroundColor: Theme.of(context).colorScheme.error,
             ),
           );
         }
@@ -883,7 +897,7 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
         });
       }
     } catch (e) {
-      print('❌ Erro ao carregar registros: $e');
+      AppLogger.error('❌ Erro ao carregar registros: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -901,11 +915,12 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(4),
       ),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       child: Container(
         width: MediaQuery.of(context).size.width * 0.9,
         height: MediaQuery.of(context).size.height * 0.8,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(4),
         ),
         clipBehavior: Clip.antiAlias,
@@ -915,7 +930,7 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.blue[600],
+                color: Theme.of(context).colorScheme.primaryContainer,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(4),
                   topRight: Radius.circular(4),
@@ -924,10 +939,10 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
               child: Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: Colors.white,
+                    backgroundColor: Theme.of(context).colorScheme.surface,
                     child: Icon(
                       _getTypeIcon(tipo),
-                      color: Colors.blue[600],
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -937,16 +952,16 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
                       children: [
                         Text(
                           vaca['nome'],
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         Text(
                           '${_formatTipo(tipo)} • ${vaca['raca']}',
-                          style: const TextStyle(
-                            color: Colors.white70,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
                             fontSize: 14,
                           ),
                         ),
@@ -955,7 +970,7 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close, color: Colors.white),
+                    icon: Icon(Icons.close, color: Theme.of(context).colorScheme.onPrimaryContainer),
                   ),
                 ],
               ),
@@ -986,8 +1001,8 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
             // Tabs
             TabBar(
               controller: _tabController,
-              labelColor: Colors.blue[600],
-              unselectedLabelColor: Colors.grey,
+              labelColor: Theme.of(context).colorScheme.primary,
+              unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
               tabs: const [
                 Tab(text: 'Geral'),
                 Tab(text: 'Produção'),
@@ -1017,18 +1032,19 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
 
   Widget _buildInfoCard(String label, String value, IconData icon) {
     return Card(
+      color: Theme.of(context).colorScheme.surfaceContainer,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-            Icon(icon, color: Colors.blue[600]),
+            Icon(icon, color: Theme.of(context).colorScheme.primary),
             const SizedBox(height: 8),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 4),
@@ -1080,13 +1096,13 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
     }
 
     if (_registrosProducao.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.water_drop_outlined, size: 48, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('Nenhum registro de produção encontrado'),
+            Icon(Icons.water_drop_outlined, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            const SizedBox(height: 16),
+            const Text('Nenhum registro de produção encontrado'),
           ],
         ),
       );
@@ -1137,7 +1153,7 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
               final quantidade = (registro['quantidade'] as num?)?.toDouble() ?? 0;
 
               return ListTile(
-                leading: const Icon(Icons.water_drop, color: Colors.blue),
+                leading: Icon(Icons.water_drop, color: Theme.of(context).colorScheme.primary),
                 title: Text('${quantidade.toStringAsFixed(1)} litros'),
                 subtitle: Text('${dataHora.day}/${dataHora.month}/${dataHora.year} às ${dataHora.hour.toString().padLeft(2, '0')}:${dataHora.minute.toString().padLeft(2, '0')}'),
               );
@@ -1154,13 +1170,13 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
     }
 
     if (_registrosSaude.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.health_and_safety_outlined, size: 48, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('Nenhum registro de saúde encontrado'),
+            Icon(Icons.health_and_safety_outlined, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            const SizedBox(height: 16),
+            const Text('Nenhum registro de saúde encontrado'),
           ],
         ),
       );
@@ -1175,8 +1191,9 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
         final observacao = registro['observacao'] ?? '';
 
         return Card(
+          color: Theme.of(context).colorScheme.surfaceContainer,
           child: ListTile(
-            leading: const Icon(Icons.health_and_safety, color: Colors.red),
+            leading: Icon(Icons.health_and_safety, color: Theme.of(context).colorScheme.error),
             title: Text(observacao),
             subtitle: Text('${dataHora.day}/${dataHora.month}/${dataHora.year} às ${dataHora.hour.toString().padLeft(2, '0')}:${dataHora.minute.toString().padLeft(2, '0')}'),
           ),
@@ -1191,13 +1208,13 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
     }
 
     if (_registrosCiclo.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.autorenew_outlined, size: 48, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('Nenhum registro de ciclo encontrado'),
+            Icon(Icons.autorenew_outlined, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            const SizedBox(height: 16),
+            const Text('Nenhum registro de ciclo encontrado'),
           ],
         ),
       );
@@ -1213,6 +1230,7 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
         final observacao = registro['observacao'] ?? '';
 
         return Card(
+          color: Theme.of(context).colorScheme.surfaceContainer,
           child: ListTile(
             leading: Icon(_getCicloIcon(periodoCiclo), color: _getCicloColor(periodoCiclo)),
             title: Text(periodoCiclo),
@@ -1237,12 +1255,12 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
         children: [
           // Peso atual
           Card(
-            color: Colors.blue.shade50,
+            color: Theme.of(context).colorScheme.primaryContainer,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  Icon(Icons.monitor_weight, color: Colors.blue.shade700, size: 32),
+                  Icon(Icons.monitor_weight, color: Theme.of(context).colorScheme.onPrimaryContainer, size: 32),
                   const SizedBox(width: 12),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1251,7 +1269,7 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
                         'Peso Atual',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Colors.blue.shade700,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
                           fontSize: 16,
                         ),
                       ),
@@ -1282,17 +1300,17 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
           // Lista de histórico
           Expanded(
             child: _historicoPeso.isEmpty
-                ? const Center(
+                ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.history, size: 64, color: Colors.grey),
-                        SizedBox(height: 16),
+                        Icon(Icons.history, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        const SizedBox(height: 16),
                         Text(
                           'Nenhuma alteração de peso registrada',
                           style: TextStyle(
                             fontSize: 16,
-                            color: Colors.grey,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -1313,12 +1331,17 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
                       
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
+                        color: Theme.of(context).colorScheme.surfaceContainer,
                         child: ListTile(
                           leading: CircleAvatar(
-                            backgroundColor: diferenca >= 0 ? Colors.green.shade100 : Colors.red.shade100,
+                            backgroundColor: diferenca >= 0 
+                                ? Theme.of(context).colorScheme.tertiaryContainer
+                                : Theme.of(context).colorScheme.errorContainer,
                             child: Icon(
                               diferenca >= 0 ? Icons.trending_up : Icons.trending_down,
-                              color: diferenca >= 0 ? Colors.green.shade700 : Colors.red.shade700,
+                              color: diferenca >= 0 
+                                  ? Theme.of(context).colorScheme.onTertiaryContainer
+                                  : Theme.of(context).colorScheme.onErrorContainer,
                             ),
                           ),
                           title: Row(
@@ -1327,14 +1350,14 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
                                 '$pesoAnterior kg',
                                 style: TextStyle(
                                   decoration: TextDecoration.lineThrough,
-                                  color: Colors.grey.shade600,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Icon(
                                 Icons.arrow_forward,
                                 size: 16,
-                                color: Colors.grey.shade600,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
                               ),
                               const SizedBox(width: 8),
                               Text(
@@ -1356,7 +1379,9 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
                               Text(
                                 '${diferenca >= 0 ? '+' : ''}${diferenca.toStringAsFixed(1)} kg',
                                 style: TextStyle(
-                                  color: diferenca >= 0 ? Colors.green.shade700 : Colors.red.shade700,
+                                  color: diferenca >= 0 
+                                      ? Theme.of(context).colorScheme.tertiary
+                                      : Theme.of(context).colorScheme.error,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -1374,18 +1399,19 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
 
   Widget _buildStatCard(String label, String value, IconData icon) {
     return Card(
+      color: Theme.of(context).colorScheme.surfaceContainer,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-            Icon(icon, color: Colors.blue[600]),
+            Icon(icon, color: Theme.of(context).colorScheme.primary),
             const SizedBox(height: 8),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 4),
@@ -1412,9 +1438,9 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
             width: 100,
             child: Text(
               '$label:',
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: Colors.grey,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -1474,21 +1500,22 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
   }
 
   Color _getCicloColor(String periodo) {
+    final colorScheme = Theme.of(context).colorScheme;
     switch (periodo.toLowerCase()) {
       case 'cio':
-        return Colors.red;
+        return colorScheme.error;
       case 'cobertura':
       case 'inseminação':
-        return Colors.blue;
+        return colorScheme.primary;
       case 'prenhez confirmada':
       case 'gestação':
-        return Colors.green;
+        return colorScheme.tertiary;
       case 'parto':
-        return Colors.orange;
+        return colorScheme.secondary;
       case 'seca':
-        return Colors.grey;
+        return colorScheme.onSurfaceVariant;
       default:
-        return Colors.purple;
+        return colorScheme.outline;
     }
   }
 }
