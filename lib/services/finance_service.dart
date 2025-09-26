@@ -3,12 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 /// Modelo para uma transação financeira.
 class FinancialTransaction {
-  final String id;
-  final String description;
-  final double amount;
-  final String type; // 'receita' ou 'despesa'
-  final DateTime date;
-
   FinancialTransaction({
     required this.id,
     required this.description,
@@ -18,7 +12,7 @@ class FinancialTransaction {
   });
 
   factory FinancialTransaction.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    final Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return FinancialTransaction(
       id: doc.id,
       description: data['description'] ?? '',
@@ -27,6 +21,11 @@ class FinancialTransaction {
       date: (data['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
+  final String id;
+  final String description;
+  final double amount;
+  final String type; // 'receita' ou 'despesa'
+  final DateTime date;
 }
 
 /// Serviço para gerenciar as operações financeiras no Firestore.
@@ -48,9 +47,8 @@ class FinanceService {
         .orderBy('date', descending: true)
         .snapshots()
         .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => FinancialTransaction.fromFirestore(doc))
-              .toList(),
+          (snapshot) =>
+              snapshot.docs.map(FinancialTransaction.fromFirestore).toList(),
         );
   }
 
@@ -71,11 +69,11 @@ class FinanceService {
         .doc(user.uid)
         .collection('transacoes')
         .add({
-          'description': description,
-          'amount': amount,
-          'type': type,
-          'date': Timestamp.fromDate(date),
-        });
+      'description': description,
+      'amount': amount,
+      'type': type,
+      'date': Timestamp.fromDate(date),
+    });
   }
 
   /// Atualiza uma transação existente.
@@ -97,11 +95,11 @@ class FinanceService {
         .collection('transacoes')
         .doc(transactionId)
         .update({
-          'description': description,
-          'amount': amount,
-          'type': type,
-          'date': Timestamp.fromDate(date),
-        });
+      'description': description,
+      'amount': amount,
+      'type': type,
+      'date': Timestamp.fromDate(date),
+    });
   }
 
   /// Deleta uma transação.

@@ -44,7 +44,7 @@ class _SaudeScreenState extends State<SaudeScreen> {
           ],
         ),
         floatingActionButton: FloatingActionButton(
-          heroTag: "saude_fab",
+          heroTag: 'saude_fab',
           onPressed: _adicionarTratamento,
           child: const Icon(Icons.add),
         ),
@@ -60,7 +60,8 @@ class _SaudeScreenState extends State<SaudeScreen> {
         return Card(
           margin: const EdgeInsets.all(8),
           child: ListTile(
-            leading: Icon(Icons.medical_services, color: Theme.of(context).colorScheme.error),
+            leading: Icon(Icons.medical_services,
+                color: Theme.of(context).colorScheme.error,),
             title: Text(tratamento['medicamento'] ?? ''),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -72,7 +73,9 @@ class _SaudeScreenState extends State<SaudeScreen> {
             ),
             trailing: Icon(
               tratamento['concluido'] ? Icons.check_circle : Icons.pending,
-              color: tratamento['concluido'] ? Theme.of(context).colorScheme.secondary : Theme.of(context).colorScheme.tertiary,
+              color: tratamento['concluido']
+                  ? Theme.of(context).colorScheme.secondary
+                  : Theme.of(context).colorScheme.tertiary,
             ),
           ),
         );
@@ -88,7 +91,8 @@ class _SaudeScreenState extends State<SaudeScreen> {
         return Card(
           margin: const EdgeInsets.all(8),
           child: ListTile(
-            leading: Icon(Icons.vaccines, color: Theme.of(context).colorScheme.primary),
+            leading: Icon(Icons.vaccines,
+                color: Theme.of(context).colorScheme.primary,),
             title: Text(vacinacao['vacina'] ?? ''),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

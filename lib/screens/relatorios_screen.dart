@@ -5,25 +5,27 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../services/user_service.dart';
+import '../utils/app_logger.dart';
 import '../widgets/upgrade_prompt_widget.dart';
 
 // Chave global para acessar o estado dos relatórios
-final GlobalKey<_RelatoriosScreenState> relatoriosScreenKey = GlobalKey<_RelatoriosScreenState>();
+final GlobalKey<RelatoriosScreenState> relatoriosScreenKey =
+    GlobalKey<RelatoriosScreenState>();
 
 class RelatoriosScreen extends StatefulWidget {
   RelatoriosScreen({Key? key}) : super(key: key ?? relatoriosScreenKey);
 
   @override
-  State<RelatoriosScreen> createState() => _RelatoriosScreenState();
+  State<RelatoriosScreen> createState() => RelatoriosScreenState();
 }
 
-class _RelatoriosScreenState extends State<RelatoriosScreen> {
+class RelatoriosScreenState extends State<RelatoriosScreen> {
   String _periodoSelecionado = 'mensal';
   DateTime _dataInicio = DateTime.now().subtract(const Duration(days: 30));
   DateTime _dataFim = DateTime.now();
   bool _isLoading = false;
   Timer? _timer;
-  
+
   // Dados dos relatórios
   double _producaoTotal = 0;
   double _mediaProducao = 0;
@@ -35,14 +37,15 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final subscription = Provider.of<UserSubscription>(context, listen: false);
+      final subscription =
+          Provider.of<UserSubscription>(context, listen: false);
       if (subscription.hasRelatoriosAvancados) {
         _carregarDados();
-        
+
         // Recarregar dados a cada 30 segundos para capturar novos registros
         _timer = Timer.periodic(const Duration(seconds: 30), (timer) {
           if (mounted) {
-            print('🔄 [RELATÓRIOS] Recarregamento automático...');
+            AppLogger.info('🔄 [RELATÓRIOS] Recarregamento automático...');
             _carregarDados();
           }
         });
@@ -52,7 +55,7 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
 
   // Método público para recarregar os dados
   void recarregarDados() {
-    print('🔄 [RELATÓRIOS] Recarregamento forçado solicitado');
+    AppLogger.info('🔄 [RELATÓRIOS] Recarregamento forçado solicitado');
     _carregarDados();
   }
 
@@ -63,74 +66,107 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
   }
 
   Future<void> _carregarDados() async {
-    print('📊 [RELATÓRIOS] Iniciando carregamento dos dados...');
+    AppLogger.info('📊 [RELATÓRIOS] Iniciando carregamento dos dados...');
     setState(() => _isLoading = true);
-    
+
     try {
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) {
-        print('❌ [RELATÓRIOS] Usuário não autenticado');
+        AppLogger.info('❌ [RELATÓRIOS] Usuário não autenticado');
         return;
       }
-      
-      print('✅ [RELATÓRIOS] Usuário ID: $userId');
-      print('📅 [RELATÓRIOS] Período: ${_dataInicio} até ${_dataFim}');
+
+      AppLogger.info('✅ [RELATÓRIOS] Usuário ID: $userId');
+      AppLogger.info('📅 [RELATÓRIOS] Período: $_dataInicio até $_dataFim');
 
       // Buscar dados de produção com consulta simplificada para evitar índice composto
       final query = FirebaseFirestore.instance
           .collection('usuarios')
           .doc(userId)
           .collection('registros_producao')
-          .where('data', isGreaterThanOrEqualTo: Timestamp.fromDate(_dataInicio))
+          .where('data',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(_dataInicio),)
           .where('data', isLessThanOrEqualTo: Timestamp.fromDate(_dataFim));
 
       final snapshot = await query.get();
-      print('📝 [RELATÓRIOS] Total de documentos encontrados: ${snapshot.docs.length}');
-      
+      AppLogger.info(
+          '📝 [RELATÓRIOS] Total de documentos encontrados: ${snapshot.docs.length}',);
+
       // Log dos dados encontrados
-      for (var doc in snapshot.docs) {
+      for (final doc in snapshot.docs) {
         final data = doc.data();
-        print('📄 [RELATÓRIOS] Doc: ${doc.id} - Tipo: ${data['tipo']} - Data: ${data['data']} - Quantidade: ${data['quantidade']}');
+        AppLogger.info(
+            '📄 [RELATÓRIOS] Doc: ${doc.id} - Tipo: ${data['tipo']} - Data: ${data['data']} - Quantidade: ${data['quantidade']}',);
       }
-      
+
       // Filtrar por tipo 'Leite' no código para evitar índice composto
       final registros = snapshot.docs
           .map((doc) => doc.data())
           .where((registro) => registro['tipo'] == 'Leite')
           .toList();
 
-      print('🥛 [RELATÓRIOS] Registros de leite filtrados: ${registros.length}');
+      AppLogger.info(
+          '🥛 [RELATÓRIOS] Registros de leite filtrados: ${registros.length}',);
 
       // Calcular métricas
       double producaoTotal = 0;
-      Map<String, double> producaoVacas = {};
-      Map<String, double> producaoTemporal = {};
+      final Map<String, double> producaoVacas = {};
+      final Map<String, double> producaoTemporal = {};
 
-      for (var registro in registros) {
+      for (final registro in registros) {
         final quantidade = (registro['quantidade'] as num).toDouble();
         final vacaId = registro['vaca_id'] as String;
         final data = (registro['data'] as Timestamp).toDate();
-        final dataKey = '${data.day}/${data.month}';
 
-        print('📈 [RELATÓRIOS] Processando: Vaca $vacaId - Quantidade: ${quantidade}L - Data: $dataKey');
+        // Melhor formatação da data para ordenação
+        String dataKey;
+        switch (_periodoSelecionado) {
+          case 'semanal':
+            // Para semanal, usar dia/mês
+            dataKey =
+                '${data.day.toString().padLeft(2, '0')}/${data.month.toString().padLeft(2, '0')}';
+            break;
+          case 'mensal':
+            // Para mensal, usar dia/mês
+            dataKey =
+                '${data.day.toString().padLeft(2, '0')}/${data.month.toString().padLeft(2, '0')}';
+            break;
+          case 'trimestral':
+            // Para trimestral, usar semana do ano
+            final semana = ((data.day - 1) ~/ 7) + 1;
+            dataKey = 'Sem $semana/${data.month.toString().padLeft(2, '0')}';
+            break;
+          case 'anual':
+            // Para anual, usar mês/ano
+            dataKey = '${data.month.toString().padLeft(2, '0')}/${data.year}';
+            break;
+          default:
+            dataKey =
+                '${data.day.toString().padLeft(2, '0')}/${data.month.toString().padLeft(2, '0')}';
+        }
+
+        AppLogger.info(
+            '📈 [RELATÓRIOS] Processando: Vaca $vacaId - Quantidade: ${quantidade}L - Data: $dataKey',);
 
         producaoTotal += quantidade;
         producaoVacas[vacaId] = (producaoVacas[vacaId] ?? 0) + quantidade;
-        producaoTemporal[dataKey] = (producaoTemporal[dataKey] ?? 0) + quantidade;
+        producaoTemporal[dataKey] =
+            (producaoTemporal[dataKey] ?? 0) + quantidade;
       }
 
-      print('💯 [RELATÓRIOS] Produção total calculada: ${producaoTotal}L');
-      print('🐄 [RELATÓRIOS] Vacas únicas: ${producaoVacas.keys.length}');
+      AppLogger.info('💯 [RELATÓRIOS] Produção total calculada: ${producaoTotal}L');
+      AppLogger.info('🐄 [RELATÓRIOS] Vacas únicas: ${producaoVacas.keys.length}');
 
       // Buscar nomes das vacas
       final vacasIds = producaoVacas.keys.toList();
       final vacasData = <String, String>{};
-      
+      final vacasExistentes = <String>{};
+
       if (vacasIds.isNotEmpty) {
-        print('🔍 [RELATÓRIOS] Buscando nomes das vacas: $vacasIds');
-        
+        AppLogger.info('🔍 [RELATÓRIOS] Buscando nomes das vacas: $vacasIds');
+
         // Buscar cada vaca individualmente para evitar problemas com whereIn
-        for (String vacaId in vacasIds) {
+        for (final String vacaId in vacasIds) {
           try {
             // Primeiro, tentar na subcoleção do usuário
             final docUser = await FirebaseFirestore.instance
@@ -139,70 +175,130 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
                 .collection('vacas')
                 .doc(vacaId)
                 .get();
-                
+
             if (docUser.exists && docUser.data() != null) {
               vacasData[vacaId] = docUser.data()!['nome'] ?? 'Sem nome';
-              print('🐮 [RELATÓRIOS] Vaca encontrada (subcoleção): $vacaId = ${vacasData[vacaId]}');
+              vacasExistentes.add(vacaId);
+              AppLogger.info(
+                  '🐮 [RELATÓRIOS] Vaca encontrada (subcoleção): $vacaId = ${vacasData[vacaId]}',);
               continue;
             }
-            
+
             // Se não encontrou na subcoleção, buscar na coleção global
             final docGlobal = await FirebaseFirestore.instance
                 .collection('vacas')
                 .doc(vacaId)
                 .get();
-                
+
             if (docGlobal.exists && docGlobal.data() != null) {
               final data = docGlobal.data()!;
               // Verificar se a vaca pertence ao usuário atual
               if (data['userId'] == userId) {
                 vacasData[vacaId] = data['nome'] ?? 'Sem nome';
-                print('🐮 [RELATÓRIOS] Vaca encontrada (global): $vacaId = ${vacasData[vacaId]}');
+                vacasExistentes.add(vacaId);
+                AppLogger.info(
+                    '🐮 [RELATÓRIOS] Vaca encontrada (global): $vacaId = ${vacasData[vacaId]}',);
+                continue;
               }
             }
-            
-            // Se ainda não encontrou, usar um nome padrão mais amigável
-            if (!vacasData.containsKey(vacaId)) {
-              vacasData[vacaId] = 'Vaca ${vacaId.substring(0, 8)}...';
-              print('⚠️ [RELATÓRIOS] Vaca não encontrada, usando nome padrão: $vacaId = ${vacasData[vacaId]}');
-            }
+
+            // Se não encontrou, não incluir na contagem mas permitir exibição
+            vacasData[vacaId] = 'Vaca ${vacaId.substring(0, 8)}... (removida)';
+            AppLogger.info(
+                '⚠️ [RELATÓRIOS] Vaca não encontrada (pode ter sido removida): $vacaId',);
           } catch (e) {
-            print('❌ [RELATÓRIOS] Erro ao buscar vaca $vacaId: $e');
-            vacasData[vacaId] = 'Vaca ${vacaId.substring(0, 8)}...';
+            AppLogger.info('❌ [RELATÓRIOS] Erro ao buscar vaca $vacaId: $e');
+            vacasData[vacaId] = 'Vaca ${vacaId.substring(0, 8)}... (erro)';
           }
         }
       }
 
-      final mediaProducao = registros.isNotEmpty ? (producaoTotal / registros.length).toDouble() : 0.0;
-      
-      print('📊 [RELATÓRIOS] Atualizando estado com:');
-      print('  - Produção total: ${producaoTotal}L');
-      print('  - Média por registro: ${mediaProducao}L');
-      print('  - Total de vacas: ${producaoVacas.length}');
+      final mediaProducao = registros.isNotEmpty
+          ? (producaoTotal / registros.length).toDouble()
+          : 0.0;
+
+      AppLogger.info('📊 [RELATÓRIOS] Atualizando estado com:');
+      AppLogger.info('  - Produção total: ${producaoTotal}L');
+      AppLogger.info('  - Média por registro: ${mediaProducao}L');
+      AppLogger.info('  - Total de vacas existentes: ${vacasExistentes.length}');
+      AppLogger.info('  - Total de IDs com produção: ${producaoVacas.length}');
 
       setState(() {
         _producaoTotal = producaoTotal;
         _mediaProducao = mediaProducao;
-        _totalVacas = producaoVacas.length;
-        
-        _producaoVacas = producaoVacas.entries.map((e) => {
-          'vaca': vacasData[e.key] ?? 'Vaca ${e.key}',
-          'producao': e.value,
-        }).toList();
-        
-        _producaoTemporal = producaoTemporal.entries.map((e) => {
-          'data': e.key,
-          'producao': e.value,
-        }).toList()..sort((a, b) => (a['data'] as String).compareTo(b['data'] as String));
+        _totalVacas =
+            vacasExistentes.length; // Contar apenas vacas que realmente existem
+
+        _producaoVacas = producaoVacas.entries
+            .map((e) => {
+                  'vaca': vacasData[e.key] ?? 'Vaca ${e.key}',
+                  'producao': e.value,
+                },)
+            .toList();
+
+        // Melhor ordenação dos dados temporais
+        final tempData = producaoTemporal.entries.toList();
+        tempData.sort((a, b) {
+          try {
+            // Tentar ordenar por data
+            final partsA = a.key.split('/');
+            final partsB = b.key.split('/');
+
+            if (partsA.length >= 2 && partsB.length >= 2) {
+              // Se tem ano (formato dd/mm/yyyy ou mm/yyyy)
+              if (partsA.length == 3 || partsB.length == 3) {
+                final anoA = partsA.length == 3
+                    ? int.parse(partsA[2])
+                    : DateTime.now().year;
+                final anoB = partsB.length == 3
+                    ? int.parse(partsB[2])
+                    : DateTime.now().year;
+                if (anoA != anoB) return anoA.compareTo(anoB);
+              }
+
+              // Comparar mês
+              final mesA = int.parse(partsA[1]);
+              final mesB = int.parse(partsB[1]);
+              if (mesA != mesB) return mesA.compareTo(mesB);
+
+              // Comparar dia (se existir)
+              if (partsA.length >= 2 &&
+                  partsB.length >= 2 &&
+                  partsA[0].length <= 2 &&
+                  partsB[0].length <= 2) {
+                final diaA = int.parse(partsA[0]);
+                final diaB = int.parse(partsB[0]);
+                return diaA.compareTo(diaB);
+              }
+            }
+          } catch (e) {
+            AppLogger.info('Erro na ordenação de datas: $e');
+          }
+          return a.key.compareTo(b.key);
+        });
+
+        _producaoTemporal = tempData
+            .map((e) => {
+                  'data': e.key,
+                  'producao': e.value,
+                },)
+            .toList();
+
+        AppLogger.info(
+            '📊 [RELATÓRIOS] Dados temporais organizados: ${_producaoTemporal.length} pontos',);
+        for (final item in _producaoTemporal) {
+          AppLogger.info('  ${item['data']}: ${item['producao']}L');
+        }
       });
-      
-      print('✅ [RELATÓRIOS] Estado atualizado com sucesso!');
+
+      AppLogger.info('✅ [RELATÓRIOS] Estado atualizado com sucesso!');
     } catch (e) {
-      print('Erro ao carregar dados dos relatórios: $e');
+      AppLogger.info('Erro ao carregar dados dos relatórios: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro ao carregar relatórios. Tente novamente.'),
+            content:
+                const Text('Erro ao carregar relatórios. Tente novamente.'),
             backgroundColor: Colors.red,
             action: SnackBarAction(
               label: 'Tentar novamente',
@@ -212,7 +308,7 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
           ),
         );
       }
-      
+
       // Definir valores padrão em caso de erro
       setState(() {
         _producaoTotal = 0;
@@ -236,15 +332,16 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
 
     if (data != null) {
       // Validações antes de atualizar
-      DateTime? novaDataInicio = isInicio ? data : _dataInicio;
-      DateTime? novaDataFim = isInicio ? _dataFim : data;
+      final DateTime novaDataInicio = isInicio ? data : _dataInicio;
+      final DateTime novaDataFim = isInicio ? _dataFim : data;
 
       // Verificar se data de início não é após data fim
       if (novaDataInicio.isAfter(novaDataFim)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('⚠️ A data de início deve ser anterior à data de fim'),
+              content: const Text(
+                  '⚠️ A data de início deve ser anterior à data de fim',),
               backgroundColor: Theme.of(context).colorScheme.tertiary,
             ),
           );
@@ -273,9 +370,10 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
           _dataFim = data;
         }
       });
-      
+
       // Recarregar dados com novo período
-      final subscription = Provider.of<UserSubscription>(context, listen: false);
+      final subscription =
+          Provider.of<UserSubscription>(context, listen: false);
       if (subscription.hasRelatoriosAvancados) {
         _carregarDados();
       }
@@ -292,7 +390,8 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
             actions: [
               IconButton(
                 icon: const Icon(Icons.refresh),
-                onPressed: subscription.hasRelatoriosAvancados ? _carregarDados : null,
+                onPressed:
+                    subscription.hasRelatoriosAvancados ? _carregarDados : null,
               ),
               IconButton(
                 icon: const Icon(Icons.info_outline),
@@ -318,7 +417,10 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
             color: Theme.of(context).colorScheme.surfaceContainer,
             boxShadow: [
               BoxShadow(
-                color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurfaceVariant
+                    .withValues(alpha: 0.3),
                 spreadRadius: 1,
                 blurRadius: 3,
                 offset: const Offset(0, 1),
@@ -393,7 +495,7 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
                   ),
                 ],
               ),
-              
+
               // Seletor de datas personalizadas
               if (_periodoSelecionado == 'personalizado') ...[
                 const SizedBox(height: 16),
@@ -402,14 +504,16 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => _selecionarData(true),
-                        child: Text('Início: ${_dataInicio.day}/${_dataInicio.month}/${_dataInicio.year}'),
+                        child: Text(
+                            'Início: ${_dataInicio.day}/${_dataInicio.month}/${_dataInicio.year}',),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => _selecionarData(false),
-                        child: Text('Fim: ${_dataFim.day}/${_dataFim.month}/${_dataFim.year}'),
+                        child: Text(
+                            'Fim: ${_dataFim.day}/${_dataFim.month}/${_dataFim.year}',),
                       ),
                     ),
                   ],
@@ -418,38 +522,37 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
             ],
           ),
         ),
-        
+
         // Conteúdo principal
         Expanded(
-          child: _isLoading 
-            ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-                child: Column(
-                  children: [
-                    // Cards de métricas
-                    _buildMetricaCard(
-                      'Produção Total',
-                      '${_producaoTotal.toStringAsFixed(2)}L',
-                      Icons.water_drop,
-                      Colors.blue,
-                    ),
-                    _buildMetricaCard(
-                      'Média por Ordenha',
-                      '${_mediaProducao.toStringAsFixed(2)}L',
-                      Icons.analytics,
-                      Colors.green,
-                    ),
-                    _buildMetricaCard(
-                      'Total de Vacas',
-                      _totalVacas.toString(),
-                      Icons.pets,
-                      Colors.orange,
-                    ),
-                    
-                    const SizedBox(height: 20),
-                    
-                    // Gráfico de produção temporal
-                    if (_producaoTemporal.isNotEmpty) ...[
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      // Cards de métricas
+                      _buildMetricaCard(
+                        'Produção Total',
+                        '${_producaoTotal.toStringAsFixed(2)}L',
+                        Icons.water_drop,
+                        Colors.blue,
+                      ),
+                      _buildMetricaCard(
+                        'Média por Ordenha',
+                        '${_mediaProducao.toStringAsFixed(2)}L',
+                        Icons.analytics,
+                        Colors.green,
+                      ),
+                      _buildMetricaCard(
+                        'Total de Vacas',
+                        _totalVacas.toString(),
+                        Icons.pets,
+                        Colors.orange,
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Gráfico de produção temporal
                       Card(
                         margin: const EdgeInsets.all(16),
                         child: Padding(
@@ -464,67 +567,124 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              SizedBox(
-                                height: 300,
-                                child: SfCartesianChart(
-                                  primaryXAxis: CategoryAxis(),
-                                  tooltipBehavior: TooltipBehavior(enable: true),
-                                  series: <CartesianSeries>[
-                                    LineSeries<Map<String, dynamic>, String>(
-                                      dataSource: _producaoTemporal,
-                                      xValueMapper: (data, _) => data['data'],
-                                      yValueMapper: (data, _) => data['producao'],
-                                      color: Colors.blue,
-                                      width: 3,
+                              if (_producaoTemporal.isEmpty)
+                                SizedBox(
+                                  height: 200,
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.insert_chart,
+                                          size: 48,
+                                          color: Colors.grey[400],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Nenhum dado de produção encontrado\npara o período selecionado',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
+                                )
+                              else
+                                SizedBox(
+                                  height: 300,
+                                  child: SfCartesianChart(
+                                    primaryXAxis: const CategoryAxis(
+                                      labelRotation: -45,
+                                      labelIntersectAction:
+                                          AxisLabelIntersectAction.rotate45,
+                                    ),
+                                    primaryYAxis: const NumericAxis(
+                                      title: AxisTitle(text: 'Produção (L)'),
+                                    ),
+                                    tooltipBehavior: TooltipBehavior(
+                                      enable: true,
+                                      format: 'point.x: point.yL',
+                                      header: '',
+                                      canShowMarker: false,
+                                    ),
+                                    series: <CartesianSeries>[
+                                      LineSeries<Map<String, dynamic>, String>(
+                                        dataSource: _producaoTemporal,
+                                        xValueMapper: (data, _) =>
+                                            data['data'].toString(),
+                                        yValueMapper: (data, _) =>
+                                            (data['producao'] as num)
+                                                .toDouble(),
+                                        name: 'Produção',
+                                        color: Colors.blue,
+                                        width: 3,
+                                        markerSettings: const MarkerSettings(
+                                          isVisible: true,
+                                          shape: DataMarkerType.circle,
+                                          width: 6,
+                                          height: 6,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         ),
                       ),
-                    ],
-                    
-                    // Gráfico de produção por vaca
-                    if (_producaoVacas.isNotEmpty) ...[
-                      Card(
-                        margin: const EdgeInsets.all(16),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            children: [
-                              const Text(
-                                'Produção por Vaca',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+
+                      // Gráfico de produção por vaca
+                      if (_producaoVacas.isNotEmpty) ...[
+                        Card(
+                          margin: const EdgeInsets.all(16),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                const Text(
+                                  'Produção por Vaca',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 16),
-                              SizedBox(
-                                height: 300,
-                                child: SfCartesianChart(
-                                  primaryXAxis: CategoryAxis(),
-                                  tooltipBehavior: TooltipBehavior(enable: true),
-                                  series: <CartesianSeries>[
-                                    ColumnSeries<Map<String, dynamic>, String>(
-                                      dataSource: _producaoVacas,
-                                      xValueMapper: (data, _) => data['vaca'],
-                                      yValueMapper: (data, _) => data['producao'],
-                                      color: Colors.green,
+                                const SizedBox(height: 16),
+                                SizedBox(
+                                  height: 300,
+                                  child: SfCartesianChart(
+                                    primaryXAxis: const CategoryAxis(),
+                                    tooltipBehavior: TooltipBehavior(
+                                      enable: true,
+                                      format: 'point.x: point.yL',
+                                      header: '',
+                                      canShowMarker: false,
                                     ),
-                                  ],
+                                    series: <CartesianSeries>[
+                                      ColumnSeries<Map<String, dynamic>,
+                                          String>(
+                                        dataSource: _producaoVacas,
+                                        xValueMapper: (data, _) => data['vaca'],
+                                        yValueMapper: (data, _) =>
+                                            (data['producao'] as num)
+                                                .toDouble(),
+                                        color: Colors.green,
+                                        name: 'Produção',
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
         ),
       ],
     );
@@ -563,7 +723,8 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
   Widget _buildBasicReports(UserSubscription subscription) {
     return const UpgradePromptWidget(
       featureName: 'Relatórios Avançados',
-      description: 'Acesse relatórios detalhados de produção, análises comparativas, gráficos avançados e muito mais para otimizar sua fazenda.',
+      description:
+          'Acesse relatórios detalhados de produção, análises comparativas, gráficos avançados e muito mais para otimizar sua fazenda.',
       requiredPlan: 'Intermediário',
     );
   }
@@ -584,8 +745,12 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
               Row(
                 children: [
                   Icon(
-                    subscription.hasRelatoriosAvancados ? Icons.check_circle : Icons.cancel,
-                    color: subscription.hasRelatoriosAvancados ? Colors.green : Colors.red,
+                    subscription.hasRelatoriosAvancados
+                        ? Icons.check_circle
+                        : Icons.cancel,
+                    color: subscription.hasRelatoriosAvancados
+                        ? Colors.green
+                        : Colors.red,
                   ),
                   const SizedBox(width: 8),
                   const Text('Relatórios Avançados'),

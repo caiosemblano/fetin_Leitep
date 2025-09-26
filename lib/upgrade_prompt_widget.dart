@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 
 class UpgradePromptWidget extends StatelessWidget {
-  final String featureName;
-  final String description;
-  final String requiredPlan;
-  
   const UpgradePromptWidget({
     super.key,
     required this.featureName,
     required this.description,
     required this.requiredPlan,
   });
+  final String featureName;
+  final String description;
+  final String requiredPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -34,32 +33,32 @@ class UpgradePromptWidget extends StatelessWidget {
                 color: Colors.orange,
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Título
             Text(
               featureName,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.orange.shade700,
-              ),
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange.shade700,
+                  ),
               textAlign: TextAlign.center,
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Descrição
             Text(
               description,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
               textAlign: TextAlign.center,
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Card com informações do plano
             Card(
               elevation: 2,
@@ -70,7 +69,7 @@ class UpgradePromptWidget extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.workspace_premium,
                           color: Colors.blue,
                           size: 20,
@@ -78,10 +77,11 @@ class UpgradePromptWidget extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           'Disponível no Plano $requiredPlan',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.blue,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.blue,
+                                  ),
                         ),
                       ],
                     ),
@@ -95,9 +95,9 @@ class UpgradePromptWidget extends StatelessWidget {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Botões de ação
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,

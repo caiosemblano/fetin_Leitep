@@ -8,6 +8,7 @@ import 'saude_screen.dart';
 import 'relatorios_screen.dart';
 import 'configuracoes_screen.dart';
 import 'notificacoes_screen.dart';
+import 'help_screen.dart';
 import '../services/persistent_auth_service.dart';
 import 'planos_screen.dart';
 import 'auth/login_screen.dart';
@@ -19,21 +20,47 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
+  late PageController _pageController;
 
-  List<Widget> get _screens => [
-    const DashboardScreen(),
-    const AtividadesScreen(),
-    const VacasScreen(),
-    RegistroProducaoScreen(
-      onNavigateToVacas: () => _onItemTapped(2), // Índice 2 é a tela de Vacas
-    ),
-  ];
+  // Cache das telas para evitar recriação
+  late final List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: 0);
+
+    // Inicializar as telas uma única vez
+    _screens = [
+      const DashboardScreen(),
+      const AtividadesScreen(),
+      const VacasScreen(),
+      RegistroProducaoScreen(
+        onNavigateToVacas: () => _onItemTapped(2),
+      ),
+    ];
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
+
     setState(() => _selectedIndex = index);
+
+    // Animação suave entre páginas
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOutCubic,
+    );
   }
 
   @override
@@ -88,10 +115,16 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.menu, color: Colors.white),
               onPressed: () => Scaffold.of(context).openDrawer(),
             ),
-          ),  
+          ),
         ),
         drawer: _buildDrawer(),
-        body: IndexedStack(index: _selectedIndex, children: _screens),
+        body: PageView(
+          controller: _pageController,
+          onPageChanged: (index) {
+            setState(() => _selectedIndex = index);
+          },
+          children: _screens,
+        ),
         bottomNavigationBar: BottomNavigationBar(
           items: const [
             BottomNavigationBarItem(
@@ -121,13 +154,13 @@ class _HomeScreenState extends State<HomeScreen> {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          DrawerHeader(
-            decoration: const BoxDecoration(color: Colors.blue),
+          const DrawerHeader(
+            decoration: BoxDecoration(color: Colors.blue),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text(
+                Text(
                   'Leite+',
                   style: TextStyle(
                     color: Colors.white,
@@ -135,8 +168,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
+                SizedBox(height: 8),
+                Text(
                   'Gestão da sua fazenda',
                   style: TextStyle(color: Colors.white70, fontSize: 14),
                 ),
@@ -162,7 +195,8 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => RelatoriosScreen(key: relatoriosScreenKey),
+                  builder: (context) =>
+                      RelatoriosScreen(key: relatoriosScreenKey),
                 ),
               );
             },
@@ -224,7 +258,10 @@ class _HomeScreenState extends State<HomeScreen> {
             title: const Text('Ajuda'),
             onTap: () {
               Navigator.pop(context);
-              // Implementar tela de ajuda
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HelpScreen()),
+              );
             },
           ),
           ListTile(

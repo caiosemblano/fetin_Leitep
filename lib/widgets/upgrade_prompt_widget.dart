@@ -2,16 +2,15 @@ import 'package:flutter/material.dart';
 import '../screens/planos_screen.dart';
 
 class UpgradePromptWidget extends StatelessWidget {
-  final String featureName;
-  final String description;
-  final String requiredPlan;
-
   const UpgradePromptWidget({
     super.key,
     required this.featureName,
     required this.description,
     required this.requiredPlan,
   });
+  final String featureName;
+  final String description;
+  final String requiredPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -29,8 +28,8 @@ class UpgradePromptWidget extends StatelessWidget {
                 featureName,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
               const SizedBox(height: 8),
               Text(

@@ -8,7 +8,8 @@ class RegistroProducaoScreen extends StatefulWidget {
   State<RegistroProducaoScreen> createState() => _RegistroProducaoScreenState();
 }
 
-class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with WidgetsBindingObserver {
+class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
+    with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   final _quantidadeController = TextEditingController();
   final _vacaController = TextEditingController();
@@ -53,7 +54,8 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
     }
 
     try {
-      final snapshot = await FirebaseFirestore.instance.collection('vacas').get();
+      final snapshot =
+          await FirebaseFirestore.instance.collection('vacas').get();
       if (mounted) {
         setState(() {
           _vacas = snapshot.docs.map((doc) {
@@ -81,7 +83,7 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
         title: const Text('Registro de Produção'),
         actions: [
           IconButton(
-            icon: _isRefreshing 
+            icon: _isRefreshing
                 ? const SizedBox(
                     width: 20,
                     height: 20,
@@ -121,7 +123,7 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
                     ],
                   ),
                 ),
-              
+
               DropdownButtonFormField<String>(
                 value: _selectedTipo,
                 items: ['Leite', 'Saúde', 'Ciclo']
@@ -152,7 +154,8 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
                 onChanged: (value) {
                   setState(() {
                     _selectedVacaId = value;
-                    final selectedVaca = _vacas.firstWhere((vaca) => vaca['id'] == value);
+                    final selectedVaca =
+                        _vacas.firstWhere((vaca) => vaca['id'] == value);
                     _vacaController.text = selectedVaca['nome'];
                   });
                 },
@@ -209,10 +212,10 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
                     'Cobertura',
                     'Prenhez Confirmada',
                     'Seca',
-                    'Parto'
+                    'Parto',
                   ]
                       .map((periodo) => DropdownMenuItem(
-                          value: periodo, child: Text(periodo)))
+                          value: periodo, child: Text(periodo),),)
                       .toList(),
                   onChanged: (value) {
                     setState(() {
@@ -236,7 +239,7 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen> with Wi
                           border: OutlineInputBorder(),
                         ),
                         child: Text(
-                          "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
+                          '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
                         ),
                       ),
                     ),

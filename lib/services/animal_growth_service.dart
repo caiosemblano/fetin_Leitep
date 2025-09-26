@@ -3,17 +3,19 @@ import '../utils/app_logger.dart';
 import '../services/notification_service.dart';
 
 class AnimalGrowthService {
-  static const int _mesesParaVacaMadura = 18; // 18 meses para se tornar vaca adulta
+  static const int _mesesParaVacaMadura =
+      18; // 18 meses para se tornar vaca adulta
 
   /// Agendar verificação automática de crescimento para todos os animais
   static Future<void> scheduleGrowthCheck() async {
     try {
       AppLogger.info('Agendando verificação de crescimento de animais');
-      
+
       // Reagendar para executar diariamente às 9h da manhã
       final amanha = DateTime.now().add(const Duration(days: 1));
-      final proximaVerificacao = DateTime(amanha.year, amanha.month, amanha.day, 9, 0);
-      
+      final proximaVerificacao =
+          DateTime(amanha.year, amanha.month, amanha.day, 9, 0);
+
       await NotificationService.scheduleNotification(
         id: 888888, // ID fixo para verificação de crescimento
         title: '🐄 Verificação de Crescimento',
@@ -21,8 +23,9 @@ class AnimalGrowthService {
         scheduledDate: proximaVerificacao,
         payload: 'animal_growth_check',
       );
-      
-      AppLogger.info('Verificação de crescimento agendada para $proximaVerificacao');
+
+      AppLogger.info(
+          'Verificação de crescimento agendada para $proximaVerificacao',);
     } catch (e) {
       AppLogger.error('Erro ao agendar verificação de crescimento', e);
     }
@@ -32,67 +35,68 @@ class AnimalGrowthService {
   static Future<void> checkAndPromoteAnimals() async {
     try {
       AppLogger.info('Iniciando verificação de crescimento de animais');
-      
-      final snapshot = await FirebaseFirestore.instance.collection('vacas').get();
+
+      final snapshot =
+          await FirebaseFirestore.instance.collection('vacas').get();
       int promovidos = 0;
-      
-      for (var doc in snapshot.docs) {
+
+      for (final doc in snapshot.docs) {
         final data = doc.data();
         final animalId = doc.id;
-        
+
         // Verificar se é um bezerro que pode ser promovido
         if (await _shouldPromoteToAdult(data)) {
           await _promoteToAdultCow(animalId, data);
           promovidos++;
         }
       }
-      
+
       if (promovidos > 0) {
         await _sendGrowthSummaryNotification(promovidos);
       }
-      
-      AppLogger.info('Verificação de crescimento concluída: $promovidos animais promovidos');
-      
+
+      AppLogger.info(
+          'Verificação de crescimento concluída: $promovidos animais promovidos',);
+
       // Reagendar para próxima verificação
       await scheduleGrowthCheck();
-      
     } catch (e) {
       AppLogger.error('Erro na verificação de crescimento', e);
     }
   }
 
   /// Verificar se um animal deve ser promovido para vaca adulta
-  static Future<bool> _shouldPromoteToAdult(Map<String, dynamic> animalData) async {
+  static Future<bool> _shouldPromoteToAdult(
+      Map<String, dynamic> animalData,) async {
     try {
       // Verificar se tem campo de tipo/categoria
       final tipo = animalData['tipo'] ?? animalData['categoria'] ?? 'vaca';
-      
+
       // Se já é vaca adulta, não precisa promover
       if (tipo == 'vaca' || tipo == 'adulta') {
         return false;
       }
-      
+
       // Verificar se é bezerro/novilha
       if (tipo != 'bezerro' && tipo != 'bezerra' && tipo != 'novilha') {
         return false;
       }
-      
+
       // Verificar idade ou data de nascimento
       if (animalData.containsKey('dataNascimento')) {
-        final dataNascimento = (animalData['dataNascimento'] as Timestamp).toDate();
+        final dataNascimento =
+            (animalData['dataNascimento'] as Timestamp).toDate();
         final idade = DateTime.now().difference(dataNascimento);
         return idade.inDays >= (_mesesParaVacaMadura * 30);
-      } 
-      else if (animalData.containsKey('idadeMeses')) {
+      } else if (animalData.containsKey('idadeMeses')) {
         final idadeMeses = animalData['idadeMeses'] as int;
         return idadeMeses >= _mesesParaVacaMadura;
-      }
-      else if (animalData.containsKey('idade')) {
+      } else if (animalData.containsKey('idade')) {
         // Se idade está em anos
         final idadeAnos = double.tryParse(animalData['idade'].toString()) ?? 0;
         return idadeAnos >= (_mesesParaVacaMadura / 12);
       }
-      
+
       return false;
     } catch (e) {
       AppLogger.error('Erro ao verificar se animal deve ser promovido', e);
@@ -101,42 +105,45 @@ class AnimalGrowthService {
   }
 
   /// Promover bezerro para vaca adulta
-  static Future<void> _promoteToAdultCow(String animalId, Map<String, dynamic> animalData) async {
+  static Future<void> _promoteToAdultCow(
+      String animalId, Map<String, dynamic> animalData,) async {
     try {
       final updatedData = Map<String, dynamic>.from(animalData);
-      
+
       // Atualizar tipo/categoria
       updatedData['tipo'] = 'vaca';
       updatedData['categoria'] = 'adulta';
-      
+
       // Atualizar status para lactação se for fêmea
       if (!updatedData.containsKey('lactacao')) {
         updatedData['lactacao'] = false; // Começa sem lactação
       }
-      
+
       // Atualizar peso se necessário (estimativa baseada na raça)
       if (updatedData.containsKey('raca')) {
         updatedData['peso'] = _estimateAdultWeight(updatedData['raca']);
       }
-      
+
       // Atualizar idade se necessário
       if (updatedData.containsKey('dataNascimento')) {
-        final dataNascimento = (updatedData['dataNascimento'] as Timestamp).toDate();
-        final idadeAnos = DateTime.now().difference(dataNascimento).inDays / 365;
+        final dataNascimento =
+            (updatedData['dataNascimento'] as Timestamp).toDate();
+        final idadeAnos =
+            DateTime.now().difference(dataNascimento).inDays / 365;
         updatedData['idade'] = idadeAnos.toStringAsFixed(1);
       }
-      
+
       // Adicionar data de promoção
       updatedData['dataPromocao'] = Timestamp.now();
-      
+
       // Salvar no Firebase
       await FirebaseFirestore.instance
           .collection('vacas')
           .doc(animalId)
           .update(updatedData);
-      
+
       AppLogger.info('Animal ${animalData['nome']} promovido para vaca adulta');
-      
+
       // Notificação individual
       await NotificationService.showInstantNotification(
         id: DateTime.now().millisecondsSinceEpoch,
@@ -144,7 +151,6 @@ class AnimalGrowthService {
         body: '${animalData['nome']} agora é uma vaca adulta!',
         payload: 'animal_promoted_$animalId',
       );
-      
     } catch (e) {
       AppLogger.error('Erro ao promover animal para vaca adulta', e);
     }
@@ -167,21 +173,20 @@ class AnimalGrowthService {
   /// Enviar notificação resumo do crescimento
   static Future<void> _sendGrowthSummaryNotification(int promovidos) async {
     try {
-      String titulo = promovidos == 1 
+      final String titulo = promovidos == 1
           ? '🐄 1 Animal Cresceu!'
           : '🐄 $promovidos Animais Cresceram!';
-      
-      String corpo = promovidos == 1
+
+      final String corpo = promovidos == 1
           ? 'Um bezerro se tornou vaca adulta hoje!'
           : '$promovidos bezerros se tornaram vacas adultas hoje!';
-      
+
       await NotificationService.showInstantNotification(
         id: DateTime.now().millisecondsSinceEpoch,
         title: titulo,
         body: corpo,
         payload: 'growth_summary_$promovidos',
       );
-      
     } catch (e) {
       AppLogger.error('Erro ao enviar notificação de resumo de crescimento', e);
     }
@@ -206,18 +211,19 @@ class AnimalGrowthService {
         'dataNascimento': Timestamp.fromDate(dataNascimento),
         'idade': _calculateAgeInYears(dataNascimento).toStringAsFixed(1),
         'idadeMeses': _calculateAgeInMonths(dataNascimento),
-        'peso': peso ?? _estimateYoungWeight(raca, _calculateAgeInMonths(dataNascimento)),
+        'peso': peso ??
+            _estimateYoungWeight(raca, _calculateAgeInMonths(dataNascimento)),
         'lactacao': false,
         'dataAdicao': Timestamp.now(),
       };
-      
+
       if (mae != null) animalData['mae'] = mae;
       if (pai != null) animalData['pai'] = pai;
-      
+
       await FirebaseFirestore.instance.collection('vacas').add(animalData);
-      
+
       AppLogger.info('Novo animal adicionado: $nome ($tipo)');
-      
+
       // Verificar se já é elegível para promoção
       if (await _shouldPromoteToAdult(animalData)) {
         // Se já deveria ser adulto, promover imediatamente
@@ -227,12 +233,11 @@ class AnimalGrowthService {
             .where('dataNascimento', isEqualTo: animalData['dataNascimento'])
             .limit(1)
             .get();
-        
+
         if (snapshot.docs.isNotEmpty) {
           await _promoteToAdultCow(snapshot.docs.first.id, animalData);
         }
       }
-      
     } catch (e) {
       AppLogger.error('Erro ao adicionar novo animal', e);
       rethrow;
@@ -247,14 +252,16 @@ class AnimalGrowthService {
   /// Calcular idade em meses
   static int _calculateAgeInMonths(DateTime dataNascimento) {
     final agora = DateTime.now();
-    return (agora.year - dataNascimento.year) * 12 + (agora.month - dataNascimento.month);
+    return (agora.year - dataNascimento.year) * 12 +
+        (agora.month - dataNascimento.month);
   }
 
   /// Estimar peso de animal jovem baseado na raça e idade
   static String _estimateYoungWeight(String raca, int idadeMeses) {
     final pesoAdulto = int.parse(_estimateAdultWeight(raca));
     final proporcaoIdade = (idadeMeses / _mesesParaVacaMadura).clamp(0.0, 1.0);
-    final pesoEstimado = (pesoAdulto * 0.3) + (pesoAdulto * 0.7 * proporcaoIdade);
+    final pesoEstimado =
+        (pesoAdulto * 0.3) + (pesoAdulto * 0.7 * proporcaoIdade);
     return pesoEstimado.round().toString();
   }
 
@@ -263,13 +270,14 @@ class AnimalGrowthService {
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection('vacas')
-          .where('tipo', whereIn: ['bezerro', 'bezerra', 'novilha'])
-          .get();
-      
-      return snapshot.docs.map((doc) => {
-        'id': doc.id,
-        ...doc.data(),
-      }).toList();
+          .where('tipo', whereIn: ['bezerro', 'bezerra', 'novilha']).get();
+
+      return snapshot.docs
+          .map((doc) => {
+                'id': doc.id,
+                ...doc.data(),
+              },)
+          .toList();
     } catch (e) {
       AppLogger.error('Erro ao buscar animais jovens', e);
       return [];
@@ -279,17 +287,18 @@ class AnimalGrowthService {
   /// Obter estatísticas de crescimento
   static Future<Map<String, int>> getGrowthStats() async {
     try {
-      final snapshot = await FirebaseFirestore.instance.collection('vacas').get();
-      
+      final snapshot =
+          await FirebaseFirestore.instance.collection('vacas').get();
+
       int bezerros = 0;
       int novilhas = 0;
       int vacasAdultas = 0;
       int prontosPraPromocao = 0;
-      
-      for (var doc in snapshot.docs) {
+
+      for (final doc in snapshot.docs) {
         final data = doc.data();
         final tipo = data['tipo'] ?? 'vaca';
-        
+
         switch (tipo) {
           case 'bezerro':
           case 'bezerra':
@@ -306,7 +315,7 @@ class AnimalGrowthService {
             break;
         }
       }
-      
+
       return {
         'bezerros': bezerros,
         'novilhas': novilhas,

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Adicionado
-import 'package:fetin/services/auth_service.dart';
-import 'package:fetin/services/persistent_auth_service.dart';
-import 'package:fetin/widgets/auth/auth_header.dart'; // Adicionado
-import 'package:fetin/widgets/auth/auth_text_field.dart'; // Adicionado
-import 'package:fetin/widgets/auth/auth_button.dart'; // Adicionado
-import 'package:fetin/screens/auth/register_screen.dart'; // Adicionado
-import 'package:fetin/screens/home_screen.dart';
+import 'dart:async';
+import '../../services/auth_service.dart';
+import '../../services/persistent_auth_service.dart';
+import '../../widgets/auth/auth_header.dart'; // Adicionado
+import '../../widgets/auth/auth_text_field.dart'; // Adicionado
+import '../../widgets/auth/auth_button.dart'; // Adicionado
+import 'register_screen.dart'; // Adicionado
+import '../home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -54,23 +55,23 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    User? user = await _auth.signIn(email, password);
+    final User? user = await _auth.signIn(email, password);
     if (!mounted) return;
-    
+
     if (user != null) {
       // Configurar preferências de login persistente
       await PersistentAuthService.setRememberMe(
         remember: _rememberMe,
         email: _rememberMe ? email : null,
       );
-      
+
       // Login bem-sucedido - navegar para home e limpar pilha
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
+        unawaited(Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => const HomeScreen()),
           (route) => false,
-        );
+        ),);
       }
     } else {
       setState(() => error = 'Falha no login. Verifique suas credenciais.');
@@ -90,20 +91,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 title: 'Entre na sua conta',
                 subtitle: 'Coloque seu e-mail e senha para fazer login',
               ),
-              
+
               AuthTextField(
                 hintText: 'login (e-mail)',
                 controller: emailController,
               ),
               const SizedBox(height: 24),
-              
+
               AuthTextField(
                 hintText: 'senha',
                 obscureText: true,
                 controller: passwordController,
               ),
               const SizedBox(height: 24),
-              
+
               // Checkbox "Lembrar de mim" simples
               Row(
                 children: [
@@ -121,26 +122,27 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               if (error.isNotEmpty)
                 Text(
                   error,
                   style: const TextStyle(color: Colors.red),
                 ),
-              
+
               AuthButton(
                 text: 'Continuar',
                 onPressed: _login,
               ),
               const SizedBox(height: 24),
-              
+
               TextButton(
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const RegisterScreen()),
+                    MaterialPageRoute(
+                        builder: (context) => const RegisterScreen(),),
                   );
                 },
                 child: const Text(

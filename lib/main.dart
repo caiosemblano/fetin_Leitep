@@ -1,6 +1,6 @@
 // import removido: 'package:fetin/screens/home/home_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:fetin/screens/auth/login_screen.dart';
+import 'screens/auth/login_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart'; // Certifique-se que este arquivo foi gerado// Arquivo gerado automaticamente
 import 'package:provider/provider.dart';
@@ -96,11 +96,8 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
 
   void _setupAuthListener() {
     // Escutar mudanças no estado de autenticação do Firebase
-    _authStateSubscription = FirebaseAuth.instance.authStateChanges().listen((
-      User? user,
-    ) {
-      _handleAuthStateChange(user);
-    });
+    _authStateSubscription =
+        FirebaseAuth.instance.authStateChanges().listen(_handleAuthStateChange);
   }
 
   Future<void> _handleAuthStateChange(User? user) async {
@@ -122,16 +119,13 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
         if (_isLoggedIn) {
           await PersistentAuthService.updateLastActivity();
           // Executar backup automático (sem bloquear a UI)
-          _backupService
-              .autoBackup()
-              .then((success) {
-                if (success) {
-                  AppLogger.info('Backup automático criado com sucesso');
-                }
-              })
-              .catchError((error) {
-                AppLogger.error('Erro no backup automático: $error');
-              });
+          unawaited(_backupService.autoBackup().then((success) {
+            if (success) {
+              AppLogger.info('Backup automático criado com sucesso');
+            }
+          }).catchError((error) {
+            AppLogger.error('Erro no backup automático: $error');
+          }),);
         }
       }
     } catch (e) {

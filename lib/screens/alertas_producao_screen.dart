@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import '../services/production_analysis_service.dart';
 import '../utils/app_logger.dart';
 import '../services/user_service.dart';
@@ -68,7 +69,7 @@ class _AlertasProducaoScreenState extends State<AlertasProducaoScreen> {
   Future<void> _markAsViewed(String alertId) async {
     try {
       await ProductionAnalysisService.markAlertAsViewed(alertId);
-      _loadAlertas(); // Recarregar lista
+      unawaited(_loadAlertas()); // Recarregar lista
     } catch (e) {
       AppLogger.error('Erro ao marcar alerta como visualizado', e);
     }
@@ -114,8 +115,8 @@ class _AlertasProducaoScreenState extends State<AlertasProducaoScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _alertas.isEmpty
-          ? _buildEmptyState()
-          : _buildAlertsList(),
+              ? _buildEmptyState()
+              : _buildAlertsList(),
     );
   }
 

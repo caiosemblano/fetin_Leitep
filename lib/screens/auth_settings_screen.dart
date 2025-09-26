@@ -23,7 +23,7 @@ class _AuthSettingsScreenState extends State<AuthSettingsScreen> {
   Future<void> _loadSettings() async {
     final settings = await PersistentAuthService.getAutoLogoutSettings();
     final status = await PersistentAuthService.getAuthStatus();
-    
+
     setState(() {
       _autoLogout = settings['enabled'];
       _timeoutMinutes = settings['timeoutMinutes'];
@@ -35,7 +35,7 @@ class _AuthSettingsScreenState extends State<AuthSettingsScreen> {
   Future<void> _saveSettings() async {
     await PersistentAuthService.toggleAutoLogout(_autoLogout);
     await PersistentAuthService.setCustomTimeout(_timeoutMinutes);
-    
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -52,13 +52,11 @@ class _AuthSettingsScreenState extends State<AuthSettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('🗑️ Limpar Dados'),
-        content: const Text(
-          'Isso irá:\n'
-          '• Remover dados de login salvos\n'
-          '• Fazer logout imediatamente\n'
-          '• Resetar todas as preferências\n\n'
-          'Deseja continuar?'
-        ),
+        content: const Text('Isso irá:\n'
+            '• Remover dados de login salvos\n'
+            '• Fazer logout imediatamente\n'
+            '• Resetar todas as preferências\n\n'
+            'Deseja continuar?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -115,22 +113,32 @@ class _AuthSettingsScreenState extends State<AuthSettingsScreen> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  _buildStatusRow('👤 Usuário:', _authStatus['userEmail'] ?? 'Não logado'),
-                  _buildStatusRow('🔒 Lembrar Login:', _authStatus['rememberMe'] ? 'Sim' : 'Não'),
-                  _buildStatusRow('⏰ Logout Automático:', _authStatus['autoLogout'] ? 'Ativo' : 'Inativo'),
-                  _buildStatusRow('⏱️ Timeout:', '${_authStatus['timeoutMinutes']} min'),
+                  _buildStatusRow(
+                      '👤 Usuário:', _authStatus['userEmail'] ?? 'Não logado',),
+                  _buildStatusRow('🔒 Lembrar Login:',
+                      _authStatus['rememberMe'] ? 'Sim' : 'Não',),
+                  _buildStatusRow('⏰ Logout Automático:',
+                      _authStatus['autoLogout'] ? 'Ativo' : 'Inativo',),
+                  _buildStatusRow(
+                      '⏱️ Timeout:', '${_authStatus['timeoutMinutes']} min',),
                   if (_authStatus['lastLogin'] != null)
-                    _buildStatusRow('📅 Último Login:', _formatDateTime(_authStatus['lastLogin'])),
+                    _buildStatusRow('📅 Último Login:',
+                        _formatDateTime(_authStatus['lastLogin']),),
                   if (_authStatus['lastActivity'] != null)
-                    _buildStatusRow('🕐 Última Atividade:', _formatDateTime(_authStatus['lastActivity'])),
-                  _buildStatusRow('🔄 Auto-verificação:', _authStatus['autoLogout'] ? 'A cada 30s' : 'Desabilitado'),
+                    _buildStatusRow('🕐 Última Atividade:',
+                        _formatDateTime(_authStatus['lastActivity']),),
+                  _buildStatusRow(
+                      '🔄 Auto-verificação:',
+                      _authStatus['autoLogout']
+                          ? 'A cada 30s'
+                          : 'Desabilitado',),
                 ],
               ),
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Configurações de segurança
           Card(
             child: Padding(
@@ -143,16 +151,15 @@ class _AuthSettingsScreenState extends State<AuthSettingsScreen> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  
                   SwitchListTile(
                     title: const Text('🔒 Logout Automático'),
-                    subtitle: const Text('Deslogar após período de inatividade'),
+                    subtitle:
+                        const Text('Deslogar após período de inatividade'),
                     value: _autoLogout,
                     onChanged: (value) {
                       setState(() => _autoLogout = value);
                     },
                   ),
-                  
                   if (_autoLogout) ...[
                     const Divider(),
                     const Text('⏰ Tempo para logout automático'),
@@ -182,9 +189,9 @@ class _AuthSettingsScreenState extends State<AuthSettingsScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Ações
           Card(
             child: Padding(
@@ -197,14 +204,12 @@ class _AuthSettingsScreenState extends State<AuthSettingsScreen> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  
                   ListTile(
                     leading: const Icon(Icons.refresh, color: Colors.blue),
                     title: const Text('Atualizar Status'),
                     subtitle: const Text('Recarregar informações atuais'),
                     onTap: _loadSettings,
                   ),
-                  
                   ListTile(
                     leading: const Icon(Icons.logout, color: Colors.orange),
                     title: const Text('Fazer Logout'),
@@ -217,9 +222,9 @@ class _AuthSettingsScreenState extends State<AuthSettingsScreen> {
                       }
                     },
                   ),
-                  
                   ListTile(
-                    leading: const Icon(Icons.delete_forever, color: Colors.red),
+                    leading:
+                        const Icon(Icons.delete_forever, color: Colors.red),
                     title: const Text('Limpar Todos os Dados'),
                     subtitle: const Text('Remover dados salvos e fazer logout'),
                     onTap: _clearAuthData,
@@ -289,7 +294,7 @@ class _AuthSettingsScreenState extends State<AuthSettingsScreen> {
       final dateTime = DateTime.parse(isoString);
       final now = DateTime.now();
       final difference = now.difference(dateTime);
-      
+
       if (difference.inMinutes < 1) return 'Agora';
       if (difference.inMinutes < 60) return '${difference.inMinutes}min atrás';
       if (difference.inHours < 24) return '${difference.inHours}h atrás';

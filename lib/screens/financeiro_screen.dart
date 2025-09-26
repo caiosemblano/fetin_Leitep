@@ -136,7 +136,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
                     Text(
                       NumberFormat.currency(
                         locale: 'pt_BR',
-                        symbol: 'R\$',
+                        symbol: r'R$',
                       ).format(resultado),
                       style: TextStyle(
                         fontSize: 18,
@@ -196,7 +196,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
                       trailing: Text(
                         NumberFormat.currency(
                           locale: 'pt_BR',
-                          symbol: 'R\$',
+                          symbol: r'R$',
                         ).format(transacao.amount),
                         style: TextStyle(
                           color: transacao.type == 'receita'
@@ -243,7 +243,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
             Text(
               NumberFormat.currency(
                 locale: 'pt_BR',
-                symbol: 'R\$',
+                symbol: r'R$',
               ).format(value),
               style: TextStyle(
                 fontSize: 20,
@@ -299,7 +299,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
                         controller: amountController,
                         decoration: const InputDecoration(
                           border: OutlineInputBorder(),
-                          labelText: 'Valor (R\$)',
+                          labelText: r'Valor (R$)',
                         ),
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,

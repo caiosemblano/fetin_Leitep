@@ -41,11 +41,11 @@ class BackupService {
           .doc(user.uid)
           .collection('backups')
           .add({
-            'fileName': fileName,
-            'timestamp': FieldValue.serverTimestamp(),
-            'size': backupJson.length,
-            'status': 'completed',
-          });
+        'fileName': fileName,
+        'timestamp': FieldValue.serverTimestamp(),
+        'size': backupJson.length,
+        'status': 'completed',
+      });
 
       return true;
     } catch (e) {
@@ -329,7 +329,7 @@ class BackupService {
       // Compartilhar arquivo
       await Share.shareXFiles([
         XFile(file.path),
-      ], text: 'Backup dos dados do Leite+');
+      ], text: 'Backup dos dados do Leite+',);
 
       return true;
     } catch (e) {

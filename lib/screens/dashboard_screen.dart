@@ -5,8 +5,9 @@ import '../services/atividades_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/notification_service.dart';
+import '../services/cache_service.dart';
+import '../widgets/loading_skeleton.dart';
 import '../utils/app_logger.dart';
-import 'notificacoes_screen.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../services/production_analysis_service.dart';
 import 'alertas_producao_screen.dart';
@@ -18,7 +19,8 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver {
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
   String _selectedChart = 'Produção';
 
   // Dados do Firebase
@@ -84,31 +86,67 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         throw Exception('Usuário não autenticado');
       }
 
-      final snapshot = await FirebaseFirestore.instance
+      // Tentar buscar no cache primeiro
+      final cacheKey = CacheService.dashboardCacheKey(user.uid);
+      final Map<String, dynamic>? cachedData =
+          CacheService.get<Map<String, dynamic>>(cacheKey);
+
+      if (cachedData != null) {
+        AppLogger.info(
+            '📊 Dashboard - Dados carregados do cache para usuário: ${user.uid}',);
+        setState(() {
+          _totalVacas = cachedData['totalVacas'] ?? 0;
+          _vacasLactacao = cachedData['vacasLactacao'] ?? 0;
+        });
+        return;
+      }
+
+      // Se não encontrou no cache, buscar no Firestore
+      // Buscar primeiro na subcoleção do usuário
+      var snapshot = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
           .collection('vacas')
-          .where('userId', isEqualTo: user.uid)
           .get();
 
-      AppLogger.info('Dashboard - Carregando vacas para o usuário: ${user.uid}');
-      AppLogger.info('Dashboard - Número de vacas encontradas: ${snapshot.docs.length}');
+      // Se não encontrou na subcoleção, buscar na coleção global
+      if (snapshot.docs.isEmpty) {
+        snapshot = await FirebaseFirestore.instance
+            .collection('vacas')
+            .where('userId', isEqualTo: user.uid)
+            .get();
+      }
+
+      AppLogger.info(
+          '📊 Dashboard - Carregando vacas do Firestore para usuário: ${user.uid}',);
+      AppLogger.info(
+          '📊 Dashboard - Número de vacas encontradas: ${snapshot.docs.length}',);
 
       final totalVacas = snapshot.docs.length;
 
       // Contar vacas em lactação
       int vacasLactacao = 0;
-      for (var doc in snapshot.docs) {
+      for (final doc in snapshot.docs) {
         final data = doc.data();
         if (data['lactacao'] == true || data['status'] == 'lactacao') {
           vacasLactacao++;
         }
       }
 
+      // Armazenar no cache
+      final dashboardData = {
+        'totalVacas': totalVacas,
+        'vacasLactacao': vacasLactacao,
+      };
+      CacheService.put(cacheKey, dashboardData,
+          ttl: const Duration(minutes: 5),);
+
       setState(() {
         _totalVacas = totalVacas;
         _vacasLactacao = vacasLactacao;
       });
     } catch (e) {
-      AppLogger.error('Erro ao carregar dados das vacas', e);
+      AppLogger.error('❌ Erro ao carregar dados das vacas', e);
     }
   }
 
@@ -118,16 +156,27 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       throw Exception('Usuário não autenticado');
     }
 
-    AppLogger.info('📊 [DASHBOARD] Carregando dados de produção para usuário: ${user.uid}');
+    AppLogger.info(
+        '📊 [DASHBOARD] Carregando dados de produção para usuário: ${user.uid}',);
 
     // Primeiro, buscar IDs das vacas ativas do usuário
-    final vacasSnapshot = await FirebaseFirestore.instance
+    var vacasSnapshot = await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(user.uid)
         .collection('vacas')
-        .where('userId', isEqualTo: user.uid)
         .get();
 
+    // Se não encontrou na subcoleção, buscar na coleção global
+    if (vacasSnapshot.docs.isEmpty) {
+      vacasSnapshot = await FirebaseFirestore.instance
+          .collection('vacas')
+          .where('userId', isEqualTo: user.uid)
+          .get();
+    }
+
     final vacasAtivas = vacasSnapshot.docs.map((doc) => doc.id).toSet();
-    AppLogger.info('📊 [DASHBOARD] Vacas ativas encontradas: ${vacasAtivas.length}');
+    AppLogger.info(
+        '📊 [DASHBOARD] Vacas ativas encontradas: ${vacasAtivas.length}',);
 
     // Consulta simplificada - buscar na subcoleção do usuário
     final snapshot = await FirebaseFirestore.instance
@@ -136,10 +185,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         .collection('registros_producao')
         .get();
 
-    AppLogger.info('📊 [DASHBOARD] Total de registros encontrados: ${snapshot.docs.length}');
+    AppLogger.info(
+        '📊 [DASHBOARD] Total de registros encontrados: ${snapshot.docs.length}',);
 
     // Agrupar por dia da semana
-    Map<String, double> producaoPorDia = {
+    final Map<String, double> producaoPorDia = {
       'Seg': 0.0,
       'Ter': 0.0,
       'Qua': 0.0,
@@ -149,19 +199,30 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       'Dom': 0.0,
     };
 
-    List<String> diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    final List<String> diasSemana = [
+      'Dom',
+      'Seg',
+      'Ter',
+      'Qua',
+      'Qui',
+      'Sex',
+      'Sáb',
+    ];
     double totalProducao = 0.0;
     int totalRegistros = 0;
     int registrosProcessados = 0;
     final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
 
-    for (var doc in snapshot.docs) {
+    for (final doc in snapshot.docs) {
       final data = doc.data();
-      final vacaId = data['vaca_id'] as String?; // CORRIGIDO: usar nome correto do campo
+      final vacaId =
+          data['vaca_id'] as String?; // CORRIGIDO: usar nome correto do campo
       final tipo = data['tipo'] as String?;
-      final dataHora = (data['data'] as Timestamp?)?.toDate(); // CORRIGIDO: usar nome correto do campo
+      final dataHora = (data['data'] as Timestamp?)
+          ?.toDate(); // CORRIGIDO: usar nome correto do campo
 
-      AppLogger.info('📊 [DASHBOARD] Processando registro: VacaID=${vacaId}, Tipo=${tipo}, Data=${dataHora}');
+      AppLogger.info(
+          '📊 [DASHBOARD] Processando registro: VacaID=$vacaId, Tipo=$tipo, Data=$dataHora',);
 
       // Filtros aplicados no cliente para evitar índices complexos
       // 1. Só processar se a vaca ainda existir (TEMPORARIAMENTE DESABILITADO PARA DEBUG)
@@ -172,7 +233,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
       // 2. Só processar registros de leite
       if (tipo != 'Leite') {
-        AppLogger.info('📊 [DASHBOARD] Registro ignorado: não é leite (${tipo})');
+        AppLogger.info('📊 [DASHBOARD] Registro ignorado: não é leite ($tipo)');
         continue;
       }
 
@@ -193,7 +254,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       registrosProcessados++;
     }
 
-    AppLogger.info('📊 [DASHBOARD] Registros processados: ${registrosProcessados}/${snapshot.docs.length}');
+    AppLogger.info(
+        '📊 [DASHBOARD] Registros processados: $registrosProcessados/${snapshot.docs.length}',);
     AppLogger.info('📊 [DASHBOARD] Produção total: ${totalProducao}L');
 
     // Calcular média diária
@@ -217,7 +279,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
     try {
       AppLogger.info('🏥 [DASHBOARD] Carregando dados de saúde');
-      
+
       // Buscar todos os registros para filtrar no cliente (evitar índices compostos)
       final snapshot = await FirebaseFirestore.instance
           .collection('usuarios')
@@ -225,30 +287,56 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           .collection('registros_producao')
           .get();
 
-      AppLogger.info('🏥 [DASHBOARD] Total de registros encontrados: ${snapshot.docs.length}');
+      AppLogger.info(
+          '🏥 [DASHBOARD] Total de registros encontrados: ${snapshot.docs.length}',);
 
       // Agrupar por mês
-      Map<String, int> saudePorMes = {
-        'Jan': 0, 'Fev': 0, 'Mar': 0, 'Abr': 0, 'Mai': 0, 'Jun': 0,
-        'Jul': 0, 'Ago': 0, 'Set': 0, 'Out': 0, 'Nov': 0, 'Dez': 0,
+      final Map<String, int> saudePorMes = {
+        'Jan': 0,
+        'Fev': 0,
+        'Mar': 0,
+        'Abr': 0,
+        'Mai': 0,
+        'Jun': 0,
+        'Jul': 0,
+        'Ago': 0,
+        'Set': 0,
+        'Out': 0,
+        'Nov': 0,
+        'Dez': 0,
       };
 
-      final mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
-                          'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-      
+      final mesesNomes = [
+        'Jan',
+        'Fev',
+        'Mar',
+        'Abr',
+        'Mai',
+        'Jun',
+        'Jul',
+        'Ago',
+        'Set',
+        'Out',
+        'Nov',
+        'Dez',
+      ];
+
       final sixMonthsAgo = DateTime.now().subtract(const Duration(days: 180));
       int registrosSaudeProcessados = 0;
 
-      for (var doc in snapshot.docs) {
+      for (final doc in snapshot.docs) {
         final data = doc.data();
         final tipo = data['tipo'] as String?;
-        final dataHora = (data['data'] as Timestamp?)?.toDate(); // CORRIGIDO: usar nome correto do campo
-        
+        final dataHora = (data['data'] as Timestamp?)
+            ?.toDate(); // CORRIGIDO: usar nome correto do campo
+
         // Filtrar no cliente
-        if (tipo != 'Saúde' || dataHora == null || dataHora.isBefore(sixMonthsAgo)) {
+        if (tipo != 'Saúde' ||
+            dataHora == null ||
+            dataHora.isBefore(sixMonthsAgo)) {
           continue;
         }
-        
+
         final mesIndex = dataHora.month - 1;
         if (mesIndex >= 0 && mesIndex < mesesNomes.length) {
           final mesNome = mesesNomes[mesIndex];
@@ -257,24 +345,26 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         }
       }
 
-      AppLogger.info('🏥 [DASHBOARD] Registros de saúde processados: $registrosSaudeProcessados');
+      AppLogger.info(
+          '🏥 [DASHBOARD] Registros de saúde processados: $registrosSaudeProcessados',);
 
       // Pegar apenas os últimos 6 meses
       final agora = DateTime.now();
-      List<ChartData> dadosGrafico = [];
-      
+      final List<ChartData> dadosGrafico = [];
+
       for (int i = 5; i >= 0; i--) {
         final mes = DateTime(agora.year, agora.month - i);
         final mesIndex = mes.month - 1;
         if (mesIndex >= 0 && mesIndex < mesesNomes.length) {
           final mesNome = mesesNomes[mesIndex];
           final quantidade = saudePorMes[mesNome] ?? 0;
-          
+
           dadosGrafico.add(ChartData(mesNome, quantidade.toDouble()));
         }
       }
 
-      AppLogger.info('🏥 [DASHBOARD] Dados do gráfico de saúde: ${dadosGrafico.map((d) => '${d.x}: ${d.y}').join(', ')}');
+      AppLogger.info(
+          '🏥 [DASHBOARD] Dados do gráfico de saúde: ${dadosGrafico.map((d) => '${d.x}: ${d.y}').join(', ')}',);
 
       setState(() {
         _saudeData = dadosGrafico;
@@ -295,14 +385,24 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
     try {
       // Buscar informações das vacas primeiro
-      final vacasSnapshot = await FirebaseFirestore.instance
+      var vacasSnapshot = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
           .collection('vacas')
-          .where('userId', isEqualTo: user.uid)
           .get();
 
-      AppLogger.info('Vacas encontradas para ciclo: ${vacasSnapshot.docs.length}');
+      // Se não encontrou na subcoleção, buscar na coleção global
+      if (vacasSnapshot.docs.isEmpty) {
+        vacasSnapshot = await FirebaseFirestore.instance
+            .collection('vacas')
+            .where('userId', isEqualTo: user.uid)
+            .get();
+      }
 
-      Map<String, int> cicloCounts = {
+      AppLogger.info(
+          'Vacas encontradas para ciclo: ${vacasSnapshot.docs.length}',);
+
+      final Map<String, int> cicloCounts = {
         'Cio': 0,
         'Insem.': 0,
         'Gest.': 0,
@@ -310,16 +410,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       };
 
       // Para cada vaca, buscar o registro de ciclo mais recente
-      for (var vacaDoc in vacasSnapshot.docs) {
+      for (final vacaDoc in vacasSnapshot.docs) {
         final vacaId = vacaDoc.id;
         final vacaData = vacaDoc.data();
-        
+
         // Buscar o último registro de ciclo desta vaca
         final registroQuery = await FirebaseFirestore.instance
             .collection('usuarios')
             .doc(user.uid)
             .collection('registros_producao')
-            .where('vaca_id', isEqualTo: vacaId) // CORRIGIDO: usar nome correto do campo
+            .where('vaca_id',
+                isEqualTo: vacaId,) // CORRIGIDO: usar nome correto do campo
             .where('tipo', isEqualTo: 'Ciclo')
             .limit(1)
             .get();
@@ -333,11 +434,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         } else {
           // Usar status_reprodutivo da vaca
           statusFinal = vacaData['status_reprodutivo'] ?? 'Cio';
-          AppLogger.info('Vaca $vacaId sem registro, usando status: $statusFinal');
+          AppLogger.info(
+              'Vaca $vacaId sem registro, usando status: $statusFinal',);
         }
 
         // Mapear e contar
-        String statusMapeado = _mapearStatus(statusFinal);
+        final String statusMapeado = _mapearStatus(statusFinal);
         cicloCounts[statusMapeado] = cicloCounts[statusMapeado]! + 1;
       }
 
@@ -358,14 +460,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   String _mapearStatus(String status) {
     final statusLower = status.toString().toLowerCase();
-    
+
     if (statusLower.contains('cio')) {
       return 'Cio';
-    } else if (statusLower.contains('insem') || statusLower.contains('cobertura')) {
+    } else if (statusLower.contains('insem') ||
+        statusLower.contains('cobertura')) {
       return 'Insem.';
-    } else if (statusLower.contains('gest') || statusLower.contains('prenhez')) {
+    } else if (statusLower.contains('gest') ||
+        statusLower.contains('prenhez')) {
       return 'Gest.';
-    } else if (statusLower.contains('parto') || statusLower.contains('lactação')) {
+    } else if (statusLower.contains('parto') ||
+        statusLower.contains('lactação')) {
       return 'Parto';
     } else {
       return 'Cio'; // Default
@@ -375,7 +480,51 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   @override
   Widget build(BuildContext context) {
     return _isLoading
-        ? const Center(child: CircularProgressIndicator())
+        ? SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header skeleton
+                const LoadingSkeleton(height: 32, width: 200),
+                const SizedBox(height: 8),
+                const LoadingSkeleton(height: 16, width: 150),
+                const SizedBox(height: 20),
+
+                // Quick stats skeleton
+                const Row(
+                  children: [
+                    Expanded(child: DashboardCardSkeleton()),
+                    SizedBox(width: 16),
+                    Expanded(child: DashboardCardSkeleton()),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Row(
+                  children: [
+                    Expanded(child: DashboardCardSkeleton()),
+                    SizedBox(width: 16),
+                    Expanded(child: DashboardCardSkeleton()),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Chart skeleton
+                const ChartSkeleton(),
+                const SizedBox(height: 20),
+
+                // Recent activities skeleton
+                const LoadingSkeleton(height: 24, width: 180),
+                const SizedBox(height: 16),
+                ...List.generate(
+                    3,
+                    (index) => const Padding(
+                          padding: EdgeInsets.only(bottom: 12),
+                          child: LoadingSkeleton(height: 60),
+                        ),),
+              ],
+            ),
+          )
         : SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -403,7 +552,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           children: [
             Expanded(
               child: Text(
-                "Dashboard",
+                'Dashboard',
                 style: Theme.of(
                   context,
                 ).textTheme.headlineMedium?.copyWith(
@@ -421,17 +570,20 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         ),
         const SizedBox(height: 8),
         Text(
-          "Bem-vindo, Fazendeiro! 👨‍🌾",
+          'Bem-vindo, Fazendeiro! 👨‍🌾',
           style: Theme.of(
             context,
           ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 4),
         Text(
-          "Resumo da sua fazenda leiteira",
+          'Resumo da sua fazenda leiteira',
           style: Theme.of(
             context,
-          ).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          )
+              .textTheme
+              .bodyLarge
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       ],
     );
@@ -443,22 +595,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       runSpacing: 10,
       children: [
         _buildStatCard(
-          "Total de Vacas",
+          'Total de Vacas',
           _totalVacas.toString(),
           Icons.pets,
-          Theme.of(context).colorScheme.primary,
+          Colors.blue, // Cor fixa
         ),
         _buildStatCard(
-          "Vacas em Lactação",
+          'Vacas em Lactação',
           _vacasLactacao.toString(),
           Icons.opacity,
-          Theme.of(context).colorScheme.secondary,
+          Colors.green, // Cor fixa
         ),
         _buildStatCard(
-          "Média Diária (L)",
+          'Média Diária (L)',
           _mediaProducaoDiaria.toStringAsFixed(1),
           Icons.local_drink,
-          Theme.of(context).colorScheme.tertiary,
+          Colors.orange, // Cor fixa
         ),
         _buildNotificationCard(),
         _buildProductionAlertsCard(),
@@ -472,21 +624,28 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     IconData icon,
     Color color,
   ) {
-    return Card(
-      elevation: 3,
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            Text(title, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          ],
+    return SizedBox(
+      width: 160, // Tamanho padronizado
+      child: Card(
+        elevation: 3,
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min, // Ajusta o tamanho ao conteúdo
+            children: [
+              Icon(icon, color: color),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style:
+                    const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              Text(title,
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,),),
+            ],
+          ),
         ),
       ),
     );
@@ -498,42 +657,35 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       builder: (context, snapshot) {
         final notificationsCount = snapshot.data?.length ?? 0;
 
-        return InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const NotificacoesScreen(),
-              ),
-            );
-          },
+        return SizedBox(
+          width: 160, // Tamanho padronizado
           child: Card(
-            elevation: 4,
-            child: Container(
-              width: 160,
-              padding: const EdgeInsets.all(16),
+            elevation: 3,
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Stack(
                     children: [
-                      Icon(Icons.notifications, size: 32, color: Theme.of(context).colorScheme.secondary),
+                      const Icon(Icons.notifications,
+                          color: Colors.amber,), // Cor fixa
                       if (notificationsCount > 0)
                         Positioned(
                           right: 0,
                           top: 0,
                           child: Container(
                             padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.error,
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
                               shape: BoxShape.circle,
                             ),
                             child: Text(
                               notificationsCount > 9
                                   ? '9+'
                                   : notificationsCount.toString(),
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.onError,
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -546,14 +698,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   Text(
                     notificationsCount.toString(),
                     style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                        fontSize: 20, fontWeight: FontWeight.bold,),
                   ),
                   Text(
                     'Notificações',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,),
                   ),
                 ],
               ),
@@ -574,45 +724,55 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           ),
         );
       },
-      child: Card(
-        elevation: 3,
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.analytics, color: Theme.of(context).colorScheme.error, size: 32),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Análise\nProdução',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: () async {
-                  await ProductionAnalysisService.analyzeAllCowsProduction();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Análise concluída!'),
-                        backgroundColor: Theme.of(context).colorScheme.secondary,
-                      ),
-                    );
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.error,
-                  foregroundColor: Theme.of(context).colorScheme.onError,
-                  minimumSize: const Size(double.infinity, 32),
+      child: SizedBox(
+        width: 340, // Tamanho maior horizontalmente como era antes
+        child: Card(
+          elevation: 3,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0), // Padding maior
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.analytics, color: Colors.purple),
+                    SizedBox(width: 8),
+                    Text(
+                      'Análise de Produção',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
-                child: const Text('Analisar', style: TextStyle(fontSize: 12)),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Text(
+                  'Monitore a produção das suas vacas e receba alertas automáticos.',
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () async {
+                    await ProductionAnalysisService.analyzeAllCowsProduction();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Análise concluída!'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 36),
+                  ),
+                  child: const Text('Analisar Agora'),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -674,7 +834,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.bar_chart, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          Icon(Icons.bar_chart,
+                              size: 48,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,),
                           const SizedBox(height: 8),
                           const Text('Nenhum dado de produção disponível'),
                           const Text(
@@ -684,7 +848,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       ),
                     )
                   : SfCartesianChart(
-                      primaryXAxis: CategoryAxis(),
+                      primaryXAxis: const CategoryAxis(),
                       series: <CartesianSeries>[
                         ColumnSeries<ChartData, String>(
                           dataSource: _producaoSemanal,
@@ -727,7 +891,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           Icon(
                             Icons.medical_services,
                             size: 48,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                           const SizedBox(height: 8),
                           const Text('Nenhum dado de saúde disponível'),
@@ -738,7 +903,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       ),
                     )
                   : SfCartesianChart(
-                      primaryXAxis: CategoryAxis(),
+                      primaryXAxis: const CategoryAxis(),
                       series: <CartesianSeries>[
                         LineSeries<ChartData, String>(
                           dataSource: _saudeData,
@@ -757,7 +922,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               padding: const EdgeInsets.only(top: 8.0),
               child: Text(
                 'Número de problemas de saúde por mês',
-                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,),
               ),
             ),
           ],
@@ -786,7 +953,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.cable, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          Icon(Icons.cable,
+                              size: 48,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,),
                           const SizedBox(height: 8),
                           const Text('Nenhum dado de ciclo disponível'),
                           const Text(
@@ -796,7 +967,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       ),
                     )
                   : SfCartesianChart(
-                      primaryXAxis: CategoryAxis(),
+                      primaryXAxis: const CategoryAxis(),
+                      primaryYAxis: const NumericAxis(
+                        interval: 1,
+                        minimum: 0,
+                        labelFormat: '{value}',
+                        decimalPlaces: 0,
+                      ),
                       series: <CartesianSeries>[
                         BarSeries<ChartData, String>(
                           dataSource: _cicloData,
@@ -814,7 +991,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               padding: const EdgeInsets.only(top: 8.0),
               child: Text(
                 'Status reprodutivo do rebanho',
-                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,),
               ),
             ),
           ],
@@ -832,7 +1011,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "Registros Recentes",
+              'Registros Recentes',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
@@ -844,10 +1023,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     ? Center(
                         child: Column(
                           children: [
-                            Icon(Icons.list_alt, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                            Icon(Icons.list_alt,
+                                size: 48,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,),
                             const SizedBox(height: 8),
                             const Text('Nenhum registro recente'),
-                            const Text('Faça registros para visualizá-los aqui'),
+                            const Text(
+                                'Faça registros para visualizá-los aqui',),
                           ],
                         ),
                       )
@@ -860,13 +1044,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                   activity.category == 'Leite'
                                       ? Icons.local_drink
                                       : activity.category == 'Saúde'
-                                      ? Icons.medical_services
-                                      : Icons.cable,
+                                          ? Icons.medical_services
+                                          : Icons.cable,
                                   color: activity.category == 'Leite'
                                       ? Colors.blue
                                       : activity.category == 'Saúde'
-                                      ? Colors.green
-                                      : Colors.purple,
+                                          ? Colors.green
+                                          : Colors.purple,
                                 ),
                                 title: Text(activity.name),
                                 subtitle: Text(activity.time.format(context)),
@@ -884,8 +1068,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 }
 
 class ChartData {
+  ChartData(this.x, this.y);
   final String x;
   final double y;
-
-  ChartData(this.x, this.y);
 }

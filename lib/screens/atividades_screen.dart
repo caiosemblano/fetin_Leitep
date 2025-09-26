@@ -23,7 +23,8 @@ class _AtividadesScreenState extends State<AtividadesScreen> {
   @override
   Widget build(BuildContext context) {
     final repo = Provider.of<AtividadesRepository>(context);
-    final activities = _selectedDay != null ? repo.getAtividadesDoDia(_selectedDay!) : [];
+    final activities =
+        _selectedDay != null ? repo.getAtividadesDoDia(_selectedDay!) : [];
 
     return Scaffold(
       appBar: AppBar(
@@ -47,12 +48,12 @@ class _AtividadesScreenState extends State<AtividadesScreen> {
               });
             },
             eventLoader: repo.getAtividadesDoDia,
-            calendarStyle: CalendarStyle(
+            calendarStyle: const CalendarStyle(
               todayDecoration: BoxDecoration(
                 color: Color.fromRGBO(33, 150, 243, 0.3),
                 shape: BoxShape.circle,
               ),
-              selectedDecoration: const BoxDecoration(
+              selectedDecoration: BoxDecoration(
                 color: Colors.blue,
                 shape: BoxShape.circle,
               ),
@@ -71,28 +72,29 @@ class _AtividadesScreenState extends State<AtividadesScreen> {
             child: _selectedDay == null
                 ? const Center(child: Text('Selecione um dia no calendário'))
                 : activities.isEmpty
-                    ? const Center(child: Text('Nenhuma atividade para este dia'))
+                    ? const Center(
+                        child: Text('Nenhuma atividade para este dia'),)
                     : ListView.builder(
                         itemCount: activities.length,
                         itemBuilder: (context, index) {
                           final activity = activities[index];
                           return Card(
                             margin: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
+                                horizontal: 8, vertical: 4,),
                             child: ListTile(
                               leading: CircleAvatar(
                                 backgroundColor: _categories[activity.category],
                                 child: const Icon(Icons.event,
-                                    color: Colors.white),
+                                    color: Colors.white,),
                               ),
                               title: Text(activity.name),
                               subtitle: Text(
-                                  '${activity.time.format(context)} - ${activity.category}'),
+                                  '${activity.time.format(context)} - ${activity.category}',),
                               trailing: IconButton(
-                                icon: const Icon(Icons.delete,
-                                    color: Colors.red),
+                                icon:
+                                    const Icon(Icons.delete, color: Colors.red),
                                 onPressed: () => repo.removeAtividade(
-                                    _selectedDay!, activity),
+                                    _selectedDay!, activity,),
                               ),
                             ),
                           );
@@ -102,7 +104,7 @@ class _AtividadesScreenState extends State<AtividadesScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        heroTag: "atividades_fab",
+        heroTag: 'atividades_fab',
         onPressed: () => _showAddActivityDialog(context),
         child: const Icon(Icons.add),
       ),
@@ -155,7 +157,7 @@ class _AtividadesScreenState extends State<AtividadesScreen> {
                           .map((category) => DropdownMenuItem(
                                 value: category,
                                 child: Text(category),
-                              ))
+                              ),)
                           .toList(),
                       onChanged: (value) {
                         setState(() => selectedCategory = value!);
@@ -181,7 +183,8 @@ class _AtividadesScreenState extends State<AtividadesScreen> {
                         time: selectedTime,
                         category: selectedCategory,
                       );
-                      repo.addAtividade(_selectedDay ?? DateTime.now(), activity);
+                      repo.addAtividade(
+                          _selectedDay ?? DateTime.now(), activity,);
                       Navigator.pop(context);
                     }
                   },

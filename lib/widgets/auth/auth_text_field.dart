@@ -2,12 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class AuthTextField extends StatelessWidget {
-  final String hintText;
-  final bool obscureText;
-  final TextEditingController controller;
-  final TextInputType keyboardType;
-  final List<TextInputFormatter>? inputFormatters;
-
   const AuthTextField({
     super.key,
     required this.hintText,
@@ -16,6 +10,11 @@ class AuthTextField extends StatelessWidget {
     this.keyboardType = TextInputType.text,
     this.inputFormatters,
   });
+  final String hintText;
+  final bool obscureText;
+  final TextEditingController controller;
+  final TextInputType keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {

@@ -8,7 +8,7 @@ class PersistentAuthService {
   static const String _keyLastLogin = 'last_login';
   static const String _keyAutoLogout = 'auto_logout_enabled';
   static const String _keyLogoutTimeout = 'logout_timeout_minutes';
-  
+
   // Configurações padrão
   static const int _defaultTimeoutMinutes = 30;
   static const int _maxInactivityDays = 30;
@@ -20,9 +20,9 @@ class PersistentAuthService {
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       await prefs.setBool(_keyRememberMe, remember);
-      
+
       if (remember && email != null) {
         await prefs.setString(_keyUserEmail, email);
         await prefs.setString(_keyLastLogin, DateTime.now().toIso8601String());
@@ -31,8 +31,9 @@ class PersistentAuthService {
         await prefs.remove(_keyUserEmail);
         await prefs.remove(_keyLastLogin);
       }
-      
-      AppLogger.info('Configurações de autenticação persistente salvas: remember=$remember');
+
+      AppLogger.info(
+          'Configurações de autenticação persistente salvas: remember=$remember',);
     } catch (e) {
       AppLogger.error('Erro ao salvar preferências de autenticação', e);
     }
@@ -43,31 +44,30 @@ class PersistentAuthService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final remember = prefs.getBool(_keyRememberMe) ?? false;
-      
+
       if (!remember) return false;
-      
+
       final lastLoginStr = prefs.getString(_keyLastLogin);
       if (lastLoginStr == null) return false;
-      
+
       final lastLogin = DateTime.parse(lastLoginStr);
       final daysSinceLogin = DateTime.now().difference(lastLogin).inDays;
-      
+
       // Se passou muito tempo, forçar novo login
       if (daysSinceLogin > _maxInactivityDays) {
         await clearAuthData();
         return false;
       }
-      
+
       // Verificar se Firebase ainda tem usuário ativo
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) {
         await clearAuthData();
         return false;
       }
-      
+
       AppLogger.info('Usuário mantido logado: ${currentUser.email}');
       return true;
-      
     } catch (e) {
       AppLogger.error('Erro ao verificar login persistente', e);
       return false;
@@ -79,26 +79,28 @@ class PersistentAuthService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final autoLogout = prefs.getBool(_keyAutoLogout) ?? true;
-      
+
       if (!autoLogout) return false;
-      
-      final timeoutMinutes = prefs.getInt(_keyLogoutTimeout) ?? _defaultTimeoutMinutes;
+
+      final timeoutMinutes =
+          prefs.getInt(_keyLogoutTimeout) ?? _defaultTimeoutMinutes;
       final lastActivityStr = prefs.getString('last_activity');
-      
+
       if (lastActivityStr == null) {
         // Primeira vez, registrar atividade
         await updateLastActivity();
         return false;
       }
-      
+
       final lastActivity = DateTime.parse(lastActivityStr);
       final minutesInactive = DateTime.now().difference(lastActivity).inMinutes;
-      
+
       if (minutesInactive >= timeoutMinutes) {
-        AppLogger.info('Logout automático por inatividade: ${minutesInactive}min');
+        AppLogger.info(
+            'Logout automático por inatividade: ${minutesInactive}min',);
         return true;
       }
-      
+
       return false;
     } catch (e) {
       AppLogger.error('Erro ao verificar logout automático', e);
@@ -133,7 +135,8 @@ class PersistentAuthService {
       final prefs = await SharedPreferences.getInstance();
       return {
         'enabled': prefs.getBool(_keyAutoLogout) ?? true,
-        'timeoutMinutes': prefs.getInt(_keyLogoutTimeout) ?? _defaultTimeoutMinutes,
+        'timeoutMinutes':
+            prefs.getInt(_keyLogoutTimeout) ?? _defaultTimeoutMinutes,
       };
     } catch (e) {
       AppLogger.error('Erro ao obter configurações de logout', e);
@@ -152,7 +155,7 @@ class PersistentAuthService {
       await prefs.remove(_keyUserEmail);
       await prefs.remove(_keyLastLogin);
       await prefs.remove('last_activity');
-      
+
       AppLogger.info('Dados de autenticação limpos');
     } catch (e) {
       AppLogger.error('Erro ao limpar dados de autenticação', e);
@@ -164,10 +167,10 @@ class PersistentAuthService {
     try {
       // Logout do Firebase
       await FirebaseAuth.instance.signOut();
-      
+
       // Limpar dados locais
       await clearAuthData();
-      
+
       AppLogger.info('Logout realizado com sucesso');
     } catch (e) {
       AppLogger.error('Erro durante logout', e);
@@ -191,13 +194,14 @@ class PersistentAuthService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final currentUser = FirebaseAuth.instance.currentUser;
-      
+
       return {
         'isLoggedIn': currentUser != null,
         'userEmail': currentUser?.email,
         'rememberMe': prefs.getBool(_keyRememberMe) ?? false,
         'autoLogout': prefs.getBool(_keyAutoLogout) ?? true,
-        'timeoutMinutes': prefs.getInt(_keyLogoutTimeout) ?? _defaultTimeoutMinutes,
+        'timeoutMinutes':
+            prefs.getInt(_keyLogoutTimeout) ?? _defaultTimeoutMinutes,
         'lastLogin': prefs.getString(_keyLastLogin),
         'lastActivity': prefs.getString('last_activity'),
       };
@@ -212,12 +216,13 @@ class PersistentAuthService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_keyAutoLogout, enabled);
-      
+
       if (enabled) {
         await updateLastActivity();
       }
-      
-      AppLogger.info('Logout automático ${enabled ? 'habilitado' : 'desabilitado'}');
+
+      AppLogger.info(
+          'Logout automático ${enabled ? 'habilitado' : 'desabilitado'}',);
     } catch (e) {
       AppLogger.error('Erro ao alterar configuração de logout automático', e);
     }
@@ -228,14 +233,14 @@ class PersistentAuthService {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return false;
-      
+
       // Se "lembrar de mim" estiver ativo, manter logado
       final shouldKeep = await shouldKeepLoggedIn();
       if (shouldKeep) {
         await updateLastActivity();
         return true;
       }
-      
+
       // Caso contrário, verificar se a sessão do Firebase ainda é válida
       return currentUser.uid.isNotEmpty;
     } catch (e) {

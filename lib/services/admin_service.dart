@@ -7,9 +7,9 @@ class AdminService {
   Future<List<Map<String, dynamic>>> getAllUsersWithPlans() async {
     try {
       final usersSnapshot = await _firestore.collection('users').get();
-      List<Map<String, dynamic>> usersWithPlans = [];
+      final List<Map<String, dynamic>> usersWithPlans = [];
 
-      for (var doc in usersSnapshot.docs) {
+      for (final doc in usersSnapshot.docs) {
         final userData = doc.data();
         final subscription =
             userData['subscription'] ?? {'plan': 'basic', 'status': 'active'};

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart'; // Adicionado para ServerValue
-import 'package:fetin/services/auth_service.dart';
-import 'package:fetin/services/database_service.dart';
-import 'package:fetin/widgets/auth/auth_header.dart';
-import 'package:fetin/widgets/auth/auth_button.dart';
-import 'package:fetin/widgets/auth/auth_text_field.dart';
+import 'dart:async';
+import '../../services/auth_service.dart';
+import '../../services/database_service.dart';
+import '../../widgets/auth/auth_header.dart';
+import '../../widgets/auth/auth_button.dart';
+import '../../widgets/auth/auth_text_field.dart';
 import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -22,8 +23,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final emailController = TextEditingController();
   final senhaController = TextEditingController();
   String error = '';
-
-
 
   @override
   void dispose() {
@@ -48,7 +47,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     try {
-      User? user = await _auth.signUp(email, senha);
+      final User? user = await _auth.signUp(email, senha);
       if (user != null) {
         await _db.saveUserData(user.uid, {
           'nome': nome,
@@ -59,10 +58,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Cadastro realizado com sucesso!')),
         );
-        Navigator.pushReplacement(
+        unawaited(Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const LoginScreen()),
-        );
+        ),);
       } else {
         setState(() => error = 'Erro desconhecido ao cadastrar.');
       }
@@ -94,40 +93,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 title: 'Crie sua conta',
                 subtitle: 'Insira seus dados e se cadastre',
               ),
-
               if (error.isNotEmpty)
                 Text(
                   error,
                   style: const TextStyle(color: Colors.red),
                 ),
-
               AuthTextField(
                 hintText: 'Nome',
                 controller: nomeController,
               ),
               const SizedBox(height: 24),
               const SizedBox(height: 24),
-
               AuthTextField(
                 hintText: 'Email@dominio.com',
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 24),
-
               AuthTextField(
                 hintText: 'Senha',
                 obscureText: true,
                 controller: senhaController,
               ),
               const SizedBox(height: 24),
-
               AuthButton(
                 text: 'Registre-se',
                 onPressed: registrar,
               ),
               const SizedBox(height: 47),
-
               TextButton(
                 onPressed: () {
                   Navigator.pushReplacement(

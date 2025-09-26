@@ -60,7 +60,8 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
                   const SizedBox(height: 16),
                   SwitchListTile(
                     title: const Text('Ativar Notificações'),
-                    subtitle: const Text('Habilitar todas as notificações do app'),
+                    subtitle:
+                        const Text('Habilitar todas as notificações do app'),
                     value: _notificacoesAtivadas,
                     onChanged: (value) {
                       setState(() {
@@ -97,12 +98,14 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
                   children: [
                     const Text(
                       'Lembretes de Ordenha',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
                     SwitchListTile(
                       title: const Text('Ativar Lembretes'),
-                      subtitle: const Text('Notificações nos horários de ordenha'),
+                      subtitle:
+                          const Text('Notificações nos horários de ordenha'),
                       value: _lembreteOrdenha,
                       onChanged: (value) {
                         setState(() {
@@ -111,8 +114,10 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
                         if (value) {
                           NotificationService.scheduleOrderNotifications();
                         } else {
-                          NotificationService.cancelNotification(NotificationService.ordeinha1Id);
-                          NotificationService.cancelNotification(NotificationService.ordeinha2Id);
+                          NotificationService.cancelNotification(
+                              NotificationService.ordeinha1Id,);
+                          NotificationService.cancelNotification(
+                              NotificationService.ordeinha2Id,);
                         }
                       },
                     ),
@@ -146,12 +151,14 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
                   children: [
                     const Text(
                       'Atividades do Dia',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
                     SwitchListTile(
                       title: const Text('Lembrete Diário'),
-                      subtitle: const Text('Notificação das atividades programadas'),
+                      subtitle:
+                          const Text('Notificação das atividades programadas'),
                       value: _lembreteAtividades,
                       onChanged: (value) {
                         setState(() {
@@ -160,7 +167,8 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
                         if (value) {
                           NotificationService.scheduleDailyActivitiesReminder();
                         } else {
-                          NotificationService.cancelNotification(NotificationService.atividadesDiaId);
+                          NotificationService.cancelNotification(
+                              NotificationService.atividadesDiaId,);
                         }
                       },
                     ),
@@ -189,7 +197,8 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
                     children: [
                       const Text(
                         'Notificações Ativas',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold,),
                       ),
                       Text(
                         '${_notificacoesPendentes.length}',
@@ -221,7 +230,8 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
                         trailing: IconButton(
                           icon: const Icon(Icons.cancel, color: Colors.red),
                           onPressed: () {
-                            NotificationService.cancelNotification(notification.id);
+                            NotificationService.cancelNotification(
+                                notification.id,);
                             _loadPendingNotifications();
                           },
                         ),
@@ -246,7 +256,8 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
                   ),
                   const SizedBox(height: 16),
                   ListTile(
-                    leading: const Icon(Icons.notification_add, color: Colors.green),
+                    leading:
+                        const Icon(Icons.notification_add, color: Colors.green),
                     title: const Text('Testar Notificação'),
                     subtitle: const Text('Enviar uma notificação de teste'),
                     onTap: _enviarNotificacaoTeste,
@@ -274,7 +285,7 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
 
   void _selecionarHorario(int tipo) async {
     TimeOfDay? novoHorario;
-    
+
     switch (tipo) {
       case 1:
         novoHorario = await showTimePicker(
@@ -312,7 +323,7 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
   void _atualizarNotificacaoOrdenha() {
     NotificationService.cancelNotification(NotificationService.ordeinha1Id);
     NotificationService.cancelNotification(NotificationService.ordeinha2Id);
-    
+
     if (_lembreteOrdenha) {
       NotificationService.scheduleDaily(
         id: NotificationService.ordeinha1Id,
@@ -322,7 +333,7 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
         minute: _horarioOrdenha1.minute,
         payload: 'ordenha_1',
       );
-      
+
       NotificationService.scheduleDaily(
         id: NotificationService.ordeinha2Id,
         title: '🐄 Hora da Ordenha!',
@@ -336,7 +347,7 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
 
   void _atualizarNotificacaoAtividades() {
     NotificationService.cancelNotification(NotificationService.atividadesDiaId);
-    
+
     if (_lembreteAtividades) {
       NotificationService.scheduleDaily(
         id: NotificationService.atividadesDiaId,
@@ -356,7 +367,7 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
       body: 'Esta é uma notificação de teste do Leite+!',
       payload: 'teste',
     );
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Notificação de teste enviada!'),
@@ -371,17 +382,17 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
       _lembreteOrdenha = true;
       _lembreteAtividades = true;
     });
-    
+
     NotificationService.scheduleOrderNotifications();
     NotificationService.scheduleDailyActivitiesReminder();
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Todas as notificações foram configuradas!'),
         backgroundColor: Colors.green,
       ),
     );
-    
+
     _loadPendingNotifications();
   }
 
@@ -390,7 +401,8 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Cancelar Notificações'),
-        content: const Text('Tem certeza que deseja cancelar todas as notificações?'),
+        content: const Text(
+            'Tem certeza que deseja cancelar todas as notificações?',),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -406,7 +418,7 @@ class _NotificacoesScreenState extends State<NotificacoesScreen> {
               });
               Navigator.pop(context);
               _loadPendingNotifications();
-              
+
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Todas as notificações foram canceladas!'),

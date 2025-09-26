@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import '../services/admin_service.dart';
 import '../services/role_service.dart';
 import 'package:intl/intl.dart';
@@ -24,7 +25,7 @@ class _AdminPlanosScreenState extends State<AdminPlanosScreen> {
   }
 
   Future<void> _checkAdmin() async {
-    bool isAdmin = await RoleService.instance.isUserAdmin();
+    final bool isAdmin = await RoleService.instance.isUserAdmin();
     if (!isAdmin) {
       if (mounted) {
         Navigator.of(context).pop();
@@ -39,7 +40,7 @@ class _AdminPlanosScreenState extends State<AdminPlanosScreen> {
       }
       return;
     }
-    _loadUsers();
+    unawaited(_loadUsers());
   }
 
   Future<void> _loadUsers() async {
@@ -101,45 +102,45 @@ class _AdminPlanosScreenState extends State<AdminPlanosScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _filteredUsers.isEmpty
-                ? const Center(child: Text('Nenhum usuário encontrado'))
-                : ListView.builder(
-                    itemCount: _filteredUsers.length,
-                    itemBuilder: (context, index) {
-                      final user = _filteredUsers[index];
-                      final createdAt = (user['createdAt'] as Timestamp)
-                          .toDate();
-                      final formattedDate = DateFormat(
-                        'dd/MM/yyyy',
-                      ).format(createdAt);
+                    ? const Center(child: Text('Nenhum usuário encontrado'))
+                    : ListView.builder(
+                        itemCount: _filteredUsers.length,
+                        itemBuilder: (context, index) {
+                          final user = _filteredUsers[index];
+                          final createdAt =
+                              (user['createdAt'] as Timestamp).toDate();
+                          final formattedDate = DateFormat(
+                            'dd/MM/yyyy',
+                          ).format(createdAt);
 
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        child: ListTile(
-                          title: Text(user['email']),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Nome: ${user['name']}'),
-                              Text('Criado em: $formattedDate'),
-                            ],
-                          ),
-                          trailing: Chip(
-                            label: Text(
-                              user['plan'].toString().toUpperCase(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                          return Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            child: ListTile(
+                              title: Text(user['email']),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Nome: ${user['name']}'),
+                                  Text('Criado em: $formattedDate'),
+                                ],
+                              ),
+                              trailing: Chip(
+                                label: Text(
+                                  user['plan'].toString().toUpperCase(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                backgroundColor: _getPlanColor(user['plan']),
                               ),
                             ),
-                            backgroundColor: _getPlanColor(user['plan']),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                          );
+                        },
+                      ),
           ),
           Padding(
             padding: const EdgeInsets.all(16.0),

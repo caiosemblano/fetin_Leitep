@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeService extends ChangeNotifier {
+  ThemeService() {
+    _loadThemeFromPrefs();
+  }
   static const String _darkModeKey = 'modo_escuro';
   bool _isDarkMode = false;
 
   bool get isDarkMode => _isDarkMode;
-
-  ThemeService() {
-    _loadThemeFromPrefs();
-  }
 
   Future<void> _loadThemeFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
@@ -40,23 +39,23 @@ class ThemeService extends ChangeNotifier {
       useMaterial3: true,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: const Color(0xFFFAFAFA), // Cinza muito claro
-      
+
       // AppBar com gradiente sutil
-      appBarTheme: AppBarTheme(
+      appBarTheme: const AppBarTheme(
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0, // Remove mudança de cor no scroll
-        backgroundColor: const Color(0xFFFAFAFA), // Cor fixa do background
+        backgroundColor: Color(0xFFFAFAFA), // Cor fixa do background
         surfaceTintColor: Colors.transparent, // Remove tint automático
-        foregroundColor: const Color(0xFF2D2D2D), // Cor do texto
-        titleTextStyle: const TextStyle(
+        foregroundColor: Color(0xFF2D2D2D), // Cor do texto
+        titleTextStyle: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.5,
           color: Color(0xFF2D2D2D),
         ),
       ),
-      
+
       // Navegação inferior mais elegante
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: Colors.white,
@@ -67,7 +66,7 @@ class ThemeService extends ChangeNotifier {
         selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
         unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w400),
       ),
-      
+
       // Cards com sombras suaves
       cardTheme: CardThemeData(
         elevation: 2,
@@ -77,7 +76,7 @@ class ThemeService extends ChangeNotifier {
         ),
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
-      
+
       // Botões mais modernos
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -88,7 +87,7 @@ class ThemeService extends ChangeNotifier {
           ),
         ),
       ),
-      
+
       // Campos de texto mais suaves
       inputDecorationTheme: InputDecorationTheme(
         border: OutlineInputBorder(
@@ -101,25 +100,26 @@ class ThemeService extends ChangeNotifier {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: seedColor, width: 2),
+          borderSide: const BorderSide(color: seedColor, width: 2),
         ),
         filled: true,
         fillColor: Colors.grey.shade50,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
-      
-      drawerTheme: DrawerThemeData(
-        backgroundColor: const Color(0xFFFAFAFA), // Mesma cor do background
+
+      drawerTheme: const DrawerThemeData(
+        backgroundColor: Color(0xFFFAFAFA), // Mesma cor do background
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: const RoundedRectangleBorder(
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.only(
             topRight: Radius.circular(16),
             bottomRight: Radius.circular(16),
           ),
         ),
       ),
-      
+
       // Transições suaves entre páginas
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
@@ -144,22 +144,22 @@ class ThemeService extends ChangeNotifier {
       useMaterial3: true,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: const Color(0xFF121212),
-      
-      appBarTheme: AppBarTheme(
+
+      appBarTheme: const AppBarTheme(
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0, // Remove mudança de cor no scroll
-        backgroundColor: const Color(0xFF121212), // Cor fixa do background escuro
+        backgroundColor: Color(0xFF121212), // Cor fixa do background escuro
         surfaceTintColor: Colors.transparent, // Remove tint automático
         foregroundColor: Colors.white, // Cor do texto
-        titleTextStyle: const TextStyle(
+        titleTextStyle: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.5,
           color: Colors.white,
         ),
       ),
-      
+
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: const Color(0xFF1E1E1E),
         selectedItemColor: seedColor,
@@ -169,7 +169,7 @@ class ThemeService extends ChangeNotifier {
         selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
         unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w400),
       ),
-      
+
       cardTheme: CardThemeData(
         elevation: 4,
         shadowColor: Colors.black26,
@@ -179,7 +179,7 @@ class ThemeService extends ChangeNotifier {
         ),
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
-      
+
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           elevation: 2,
@@ -189,7 +189,7 @@ class ThemeService extends ChangeNotifier {
           ),
         ),
       ),
-      
+
       inputDecorationTheme: InputDecorationTheme(
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
@@ -201,24 +201,25 @@ class ThemeService extends ChangeNotifier {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: seedColor, width: 2),
+          borderSide: const BorderSide(color: seedColor, width: 2),
         ),
         filled: true,
         fillColor: const Color(0xFF2A2A2A),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
-      
-      drawerTheme: DrawerThemeData(
-        backgroundColor: const Color(0xFF1E1E1E), // Fundo escuro consistente
+
+      drawerTheme: const DrawerThemeData(
+        backgroundColor: Color(0xFF1E1E1E), // Fundo escuro consistente
         surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.only(
             topRight: Radius.circular(16),
             bottomRight: Radius.circular(16),
           ),
         ),
       ),
-      
+
       // Transições suaves entre páginas
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {

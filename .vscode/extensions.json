@@ -1,0 +1,50 @@
+{
+    // Extensões recomendadas para desenvolvimento Flutter
+    "recommendations": [
+        // Flutter & Dart
+        "dart-code.dart-code",
+        "dart-code.flutter",
+        
+        // Firebase
+        "toba.vsfire",
+        "bradlc.vscode-tailwindcss",
+        
+        // Git & Versionamento
+        "eamodio.gitlens",
+        "mhutchie.git-graph",
+        "donjayamanne.githistory",
+        
+        // Produtividade
+        "ms-vscode.vscode-json",
+        "redhat.vscode-yaml",
+        "streetsidesoftware.code-spell-checker",
+        "wayou.vscode-todo-highlight",
+        "gruntfuggly.todo-tree",
+        
+        // Formatação e Linting
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        
+        // Depuração
+        "ms-vscode.vscode-chrome-debug",
+        
+        // Temas e UI
+        "pkief.material-icon-theme",
+        "zhuangtongfa.material-theme",
+        
+        // Markdown
+        "yzhang.markdown-all-in-one",
+        "shd101wyy.markdown-preview-enhanced",
+        
+        // Utilitários
+        "formulahendry.auto-rename-tag",
+        "ms-vscode.vscode-typescript-next",
+        "christian-kohler.path-intellisense",
+        "visualstudioexptteam.vscodeintellicode",
+        
+        // Firebase específico
+        "toba.vsfire",
+        "firebase.vscode-firebase-explorer"
+    ]
+}

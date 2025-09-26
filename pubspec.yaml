@@ -1,10 +1,11 @@
-name: fetin
-description: "A new Flutter project."
+name: pleite_fetin
+description: "Sistema de gestão para produção leiteira - FETIN 2024"
 publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.8.1
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
 
 
 dependencies:
@@ -41,7 +42,6 @@ dev_dependencies:
 
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.1
-
 flutter:
   uses-material-design: true
 

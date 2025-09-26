@@ -9,7 +9,8 @@ class PlanValidationService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
   /// Verificar se o usuário pode adicionar uma nova vaca
-  static Future<bool> canAddCow(BuildContext context, UserSubscription subscription) async {
+  static Future<bool> canAddCow(
+      BuildContext context, UserSubscription subscription,) async {
     try {
       final user = _auth.currentUser;
       if (user == null) return false;
@@ -22,13 +23,13 @@ class PlanValidationService {
           .get();
 
       final currentCount = vacasSnapshot.docs.length;
-      
+
       if (!subscription.canAddMoreCows(currentCount)) {
         _showLimitReachedDialog(
           context,
           'Limite de Vacas Atingido',
           'Você atingiu o limite de ${subscription.maxVacas} vacas do plano ${_getPlanDisplayName(subscription.plan)}.\n\n'
-          '${subscription.getUpgradeMessage('vacas')}',
+              '${subscription.getUpgradeMessage('vacas')}',
         );
         return false;
       }
@@ -41,36 +42,37 @@ class PlanValidationService {
   }
 
   /// Verificar se o usuário pode fazer mais registros de produção este mês
-  static Future<bool> canAddProductionRecord(BuildContext context, UserSubscription subscription) async {
-    print('🔍 [DEBUG] Iniciando validação de registro de produção...');
-    
+  static Future<bool> canAddProductionRecord(
+      BuildContext context, UserSubscription subscription,) async {
+    AppLogger.info('🔍 [DEBUG] Iniciando validação de registro de produção...');
+
     try {
       final user = _auth.currentUser;
       if (user == null) {
-        print('❌ [DEBUG] Usuário não autenticado');
+        AppLogger.info('❌ [DEBUG] Usuário não autenticado');
         return false;
       }
-      
-      print('✅ [DEBUG] Usuário: ${user.uid}');
-      print('📋 [DEBUG] Plano: ${subscription.plan}');
-      print('📊 [DEBUG] Limite: ${subscription.maxRegistrosProducaoPorMes}');
+
+      AppLogger.info('✅ [DEBUG] Usuário: ${user.uid}');
+      AppLogger.info('📋 [DEBUG] Plano: ${subscription.plan}');
+      AppLogger.info('📊 [DEBUG] Limite: ${subscription.maxRegistrosProducaoPorMes}');
 
       // TEMPORÁRIO: Para debug, sempre permitir se não for plano básico
       if (subscription.plan != 'basic') {
-        print('🎯 [DEBUG] Plano não básico - permitindo (temporário)');
+        AppLogger.info('🎯 [DEBUG] Plano não básico - permitindo (temporário)');
         return true;
       }
 
       // Para planos premium (ilimitados), sempre permitir
       if (subscription.maxRegistrosProducaoPorMes == -1) {
-        print('🎯 [DEBUG] Plano ilimitado - permitindo');
+        AppLogger.info('🎯 [DEBUG] Plano ilimitado - permitindo');
         return true;
       }
 
       // Simplificar a consulta para debug
       final now = DateTime.now();
       final startOfMonth = DateTime(now.year, now.month, 1);
-      print('📅 [DEBUG] Período: ${startOfMonth} até ${now}');
+      AppLogger.info('📅 [DEBUG] Período: $startOfMonth até $now');
 
       // Buscar todos os registros do mês (sem filtro de tipo) para debug
       final registrosSnapshot = await _db
@@ -79,28 +81,30 @@ class PlanValidationService {
           .collection('registros_producao')
           .get();
 
-      print('📝 [DEBUG] Total registros na coleção: ${registrosSnapshot.docs.length}');
+      AppLogger.info(
+          '📝 [DEBUG] Total registros na coleção: ${registrosSnapshot.docs.length}',);
 
       // Para plano básico, permitir até 10 registros
       final currentCount = registrosSnapshot.docs.length;
-      print('🔢 [DEBUG] Registros atuais: $currentCount');
-      print('⚖️ [DEBUG] Limite do plano básico: 10');
+      AppLogger.info('🔢 [DEBUG] Registros atuais: $currentCount');
+      AppLogger.info('⚖️ [DEBUG] Limite do plano básico: 10');
 
       if (currentCount >= 10) {
-        print('🚫 [DEBUG] Limite do plano básico atingido (10 registros)');
+        AppLogger.info('🚫 [DEBUG] Limite do plano básico atingido (10 registros)');
         _showLimitReachedDialog(
           context,
           'Limite de Registros Atingido',
           'Você atingiu o limite de 10 registros de produção por mês do plano Básico.\n\n'
-          'Faça upgrade para o plano Intermediário (R\$ 59,90/mês) para registrar até 50 por mês.',
+              r'Faça upgrade para o plano Intermediário (R$ 59,90/mês) para registrar até 50 por mês.',
         );
         return false;
       }
 
-      print('✅ [DEBUG] Validação passou - permitindo registro ($currentCount/10)');
+      AppLogger.info(
+          '✅ [DEBUG] Validação passou - permitindo registro ($currentCount/10)',);
       return true;
     } catch (e) {
-      print('❌ [DEBUG] Erro na validação: $e');
+      AppLogger.info('❌ [DEBUG] Erro na validação: $e');
       AppLogger.error('Erro ao verificar limite de registros: $e');
       // Em caso de erro, permitir a ação para não bloquear o usuário
       return true;
@@ -108,7 +112,8 @@ class PlanValidationService {
   }
 
   /// Verificar se o usuário pode acessar uma funcionalidade específica
-  static bool canAccessFeature(BuildContext context, UserSubscription subscription, String feature) {
+  static bool canAccessFeature(
+      BuildContext context, UserSubscription subscription, String feature,) {
     bool hasAccess = false;
 
     switch (feature) {
@@ -139,7 +144,7 @@ class PlanValidationService {
         context,
         'Funcionalidade Bloqueada',
         'A funcionalidade "$feature" não está disponível no plano ${_getPlanDisplayName(subscription.plan)}.\n\n'
-        '${subscription.getUpgradeMessage(feature)}',
+            '${subscription.getUpgradeMessage(feature)}',
       );
     }
 
@@ -147,7 +152,8 @@ class PlanValidationService {
   }
 
   /// Mostrar dialog de limite atingido
-  static void _showLimitReachedDialog(BuildContext context, String title, String message) {
+  static void _showLimitReachedDialog(
+      BuildContext context, String title, String message,) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -179,7 +185,8 @@ class PlanValidationService {
   }
 
   /// Mostrar dialog de funcionalidade bloqueada
-  static void _showFeatureBlockedDialog(BuildContext context, String title, String message) {
+  static void _showFeatureBlockedDialog(
+      BuildContext context, String title, String message,) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -225,10 +232,15 @@ class PlanValidationService {
   }
 
   /// Mostrar informações do plano atual
-  static void showCurrentPlanInfo(BuildContext context, UserSubscription subscription) {
+  static void showCurrentPlanInfo(
+      BuildContext context, UserSubscription subscription,) {
     final planName = _getPlanDisplayName(subscription.plan);
-    final maxVacas = subscription.maxVacas == -1 ? 'Ilimitadas' : subscription.maxVacas.toString();
-    final maxRegistros = subscription.maxRegistrosProducaoPorMes == -1 ? 'Ilimitados' : subscription.maxRegistrosProducaoPorMes.toString();
+    final maxVacas = subscription.maxVacas == -1
+        ? 'Ilimitadas'
+        : subscription.maxVacas.toString();
+    final maxRegistros = subscription.maxRegistrosProducaoPorMes == -1
+        ? 'Ilimitados'
+        : subscription.maxRegistrosProducaoPorMes.toString();
 
     showDialog(
       context: context,
@@ -239,20 +251,25 @@ class PlanValidationService {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Status: ${subscription.status}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text('Status: ${subscription.status}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),),
               const SizedBox(height: 8),
-              Text('Limites do seu plano:'),
+              const Text('Limites do seu plano:'),
               const SizedBox(height: 4),
               Text('• Vacas: $maxVacas'),
               Text('• Registros/mês: $maxRegistros'),
               const SizedBox(height: 8),
-              Text('Funcionalidades:'),
+              const Text('Funcionalidades:'),
               const SizedBox(height: 4),
               _buildFeatureItem('Financeiro', subscription.hasFinanceiroAccess),
-              _buildFeatureItem('Relatórios Avançados', subscription.hasRelatoriosAvancados),
-              _buildFeatureItem('Backup Automático', subscription.hasBackupAutomatico),
-              _buildFeatureItem('Análises Preditivas', subscription.hasAnalisesPreditivas),
-              _buildFeatureItem('Suporte Prioritário', subscription.hasSuportePrioritario),
+              _buildFeatureItem(
+                  'Relatórios Avançados', subscription.hasRelatoriosAvancados,),
+              _buildFeatureItem(
+                  'Backup Automático', subscription.hasBackupAutomatico,),
+              _buildFeatureItem(
+                  'Análises Preditivas', subscription.hasAnalisesPreditivas,),
+              _buildFeatureItem(
+                  'Suporte Prioritário', subscription.hasSuportePrioritario,),
             ],
           ),
           actions: [

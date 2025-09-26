@@ -4,9 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/app_logger.dart';
 
 class UserRole {
-  final bool isAdmin;
-  final String role;
-
   UserRole({this.isAdmin = false, this.role = 'user'});
 
   factory UserRole.fromFirestore(dynamic data) {
@@ -36,6 +33,8 @@ class UserRole {
 
     return UserRole();
   }
+  final bool isAdmin;
+  final String role;
 
   Map<String, dynamic> toMap() {
     return {'isAdmin': isAdmin, 'role': role};
@@ -43,13 +42,13 @@ class UserRole {
 }
 
 class RoleService {
+  factory RoleService() => instance;
+  RoleService._internal();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // Singleton pattern
   static final RoleService instance = RoleService._internal();
-  factory RoleService() => instance;
-  RoleService._internal();
 
   Future<UserRole> getUserRole() async {
     final user = _auth.currentUser;
@@ -94,7 +93,8 @@ class RoleService {
 
   Future<bool> isUserAdmin() async {
     final role = await getUserRole();
-    AppLogger.info('Verificando admin - isAdmin: ${role.isAdmin}, role: ${role.role}');
+    AppLogger.info(
+        'Verificando admin - isAdmin: ${role.isAdmin}, role: ${role.role}',);
     return role.isAdmin;
   }
 }

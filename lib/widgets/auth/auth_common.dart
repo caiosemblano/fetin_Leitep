@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 
 class AuthHeader extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  
   const AuthHeader({
     super.key,
     required this.title,
     required this.subtitle,
   });
+  final String title;
+  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -40,16 +39,15 @@ class AuthHeader extends StatelessWidget {
 }
 
 class AuthButton extends StatelessWidget {
-  final String text;
-  final VoidCallback onPressed;
-  final bool isLoading;
-
   const AuthButton({
     super.key,
     required this.text,
     required this.onPressed,
     this.isLoading = false,
   });
+  final String text;
+  final VoidCallback onPressed;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -63,9 +61,7 @@ class AuthButton extends StatelessWidget {
           ),
         ),
         onPressed: isLoading ? null : onPressed,
-        child: isLoading
-            ? const CircularProgressIndicator()
-            : Text(text),
+        child: isLoading ? const CircularProgressIndicator() : Text(text),
       ),
     );
   }

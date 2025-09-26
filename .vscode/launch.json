@@ -1,0 +1,56 @@
+{
+    // Configurações de debug para Flutter
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Flutter Debug",
+            "type": "dart",
+            "request": "launch",
+            "program": "lib/main.dart",
+            "args": ["--flavor", "development"]
+        },
+        {
+            "name": "Flutter Debug (Profile)",
+            "type": "dart",
+            "request": "launch",
+            "program": "lib/main.dart",
+            "flutterMode": "profile",
+            "args": ["--flavor", "development"]
+        },
+        {
+            "name": "Flutter Debug (Release)",
+            "type": "dart",
+            "request": "launch",
+            "program": "lib/main.dart",
+            "flutterMode": "release",
+            "args": ["--flavor", "production"]
+        },
+        {
+            "name": "Flutter Test",
+            "type": "dart",
+            "request": "launch",
+            "program": "test/",
+            "console": "terminal"
+        },
+        {
+            "name": "Flutter Integration Test",
+            "type": "dart",
+            "request": "launch",
+            "program": "integration_test/",
+            "args": ["--flavor", "development"]
+        },
+        {
+            "name": "Flutter Web Debug",
+            "type": "dart",
+            "request": "launch",
+            "program": "lib/main.dart",
+            "deviceId": "web-server",
+            "args": ["--web-port", "3000"]
+        },
+        {
+            "name": "Attach to Flutter",
+            "type": "dart",
+            "request": "attach"
+        }
+    ]
+}

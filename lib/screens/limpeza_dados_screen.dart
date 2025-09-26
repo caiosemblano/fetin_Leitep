@@ -33,7 +33,7 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    const Row(
                       children: [
                         Icon(Icons.info, color: Colors.blue),
                         SizedBox(width: 8),
@@ -46,11 +46,11 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
                         ),
                       ],
                     ),
-                    SizedBox(height: 12),
-                    Text(
+                    const SizedBox(height: 12),
+                    const Text(
                       'Esta ferramenta remove registros de produção de vacas que foram excluídas, mantendo seus dados consistentes.',
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
                       '• Identifica registros sem vaca associada\n'
                       '• Remove dados inconsistentes\n'
@@ -62,7 +62,7 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
               ),
             ),
 
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
             // Resultados da Análise
             if (_registrosOrfaos > 0 || _problemas.isNotEmpty)
@@ -75,8 +75,8 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.warning, color: Colors.orange),
-                          SizedBox(width: 8),
+                          const Icon(Icons.warning, color: Colors.orange),
+                          const SizedBox(width: 8),
                           Text(
                             'Problemas Encontrados',
                             style: TextStyle(
@@ -87,11 +87,11 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
                           ),
                         ],
                       ),
-                      SizedBox(height: 12),
+                      const SizedBox(height: 12),
                       if (_registrosOrfaos > 0)
                         Text(
                           '📊 $_registrosOrfaos registros de produção órfãos',
-                          style: TextStyle(fontSize: 16),
+                          style: const TextStyle(fontSize: 16),
                         ),
                       if (_problemas.isNotEmpty)
                         ..._problemas.map((problema) => Text('• $problema')),
@@ -100,7 +100,7 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
                 ),
               ),
 
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
             // Botões de Ação
             Column(
@@ -108,53 +108,54 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _isScanning || _isCleaning ? null : _analisarDados,
-                    icon: _isScanning 
-                        ? SizedBox(
+                    onPressed:
+                        _isScanning || _isCleaning ? null : _analisarDados,
+                    icon: _isScanning
+                        ? const SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : Icon(Icons.search),
-                    label: Text(_isScanning ? 'Analisando...' : 'Analisar Dados'),
+                        : const Icon(Icons.search),
+                    label:
+                        Text(_isScanning ? 'Analisando...' : 'Analisar Dados'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: 15),
+                      padding: const EdgeInsets.symmetric(vertical: 15),
                     ),
                   ),
                 ),
-                
-                SizedBox(height: 10),
-                
+                const SizedBox(height: 10),
                 if (_registrosOrfaos > 0)
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: _isScanning || _isCleaning ? null : _limparDados,
-                      icon: _isCleaning 
-                          ? SizedBox(
+                      onPressed:
+                          _isScanning || _isCleaning ? null : _limparDados,
+                      icon: _isCleaning
+                          ? const SizedBox(
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : Icon(Icons.cleaning_services),
+                          : const Icon(Icons.cleaning_services),
                       label: Text(_isCleaning ? 'Limpando...' : 'Limpar Dados'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
                         foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: 15),
+                        padding: const EdgeInsets.symmetric(vertical: 15),
                       ),
                     ),
                   ),
               ],
             ),
 
-            Spacer(),
+            const Spacer(),
 
             // Aviso
             Container(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.red[50],
                 border: Border.all(color: Colors.red[200]!),
@@ -162,8 +163,8 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.warning, color: Colors.red),
-                  SizedBox(width: 8),
+                  const Icon(Icons.warning, color: Colors.red),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       '⚠️ A limpeza de dados é irreversível. Faça backup antes de prosseguir.',
@@ -188,10 +189,9 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
 
     try {
       // Buscar todas as vacas ativas
-      final vacasSnapshot = await FirebaseFirestore.instance
-          .collection('vacas')
-          .get();
-      
+      final vacasSnapshot =
+          await FirebaseFirestore.instance.collection('vacas').get();
+
       final vacasAtivas = vacasSnapshot.docs.map((doc) => doc.id).toSet();
 
       // Buscar todos os registros de produção
@@ -200,9 +200,9 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
           .get();
 
       int registrosOrfaos = 0;
-      List<String> problemas = [];
+      final List<String> problemas = [];
 
-      for (var doc in registrosSnapshot.docs) {
+      for (final doc in registrosSnapshot.docs) {
         final data = doc.data();
         final vacaId = data['vacaId'] as String?;
 
@@ -222,17 +222,17 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Análise concluída: $registrosOrfaos registros órfãos encontrados'),
+            content: Text(
+                'Análise concluída: $registrosOrfaos registros órfãos encontrados',),
             backgroundColor: registrosOrfaos > 0 ? Colors.orange : Colors.green,
           ),
         );
       }
-
     } catch (e) {
       setState(() {
         _isScanning = false;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -249,19 +249,18 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
     final confirmacao = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Confirmar Limpeza'),
+        title: const Text('Confirmar Limpeza'),
         content: Text(
-          'Isso removerá $_registrosOrfaos registros de produção órfãos.\n\n'
-          'Esta ação é irreversível. Deseja continuar?'
-        ),
+            'Isso removerá $_registrosOrfaos registros de produção órfãos.\n\n'
+            'Esta ação é irreversível. Deseja continuar?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancelar'),
+            child: const Text('Cancelar'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Confirmar', style: TextStyle(color: Colors.red)),
+            child: const Text('Confirmar', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -275,10 +274,9 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
 
     try {
       // Buscar vacas ativas novamente
-      final vacasSnapshot = await FirebaseFirestore.instance
-          .collection('vacas')
-          .get();
-      
+      final vacasSnapshot =
+          await FirebaseFirestore.instance.collection('vacas').get();
+
       final vacasAtivas = vacasSnapshot.docs.map((doc) => doc.id).toSet();
 
       // Buscar registros órfãos
@@ -289,7 +287,7 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
       final batch = FirebaseFirestore.instance.batch();
       int removidos = 0;
 
-      for (var doc in registrosSnapshot.docs) {
+      for (final doc in registrosSnapshot.docs) {
         final data = doc.data();
         final vacaId = data['vacaId'] as String?;
 
@@ -315,7 +313,6 @@ class _LimpezaDadosScreenState extends State<LimpezaDadosScreen> {
           ),
         );
       }
-
     } catch (e) {
       setState(() {
         _isCleaning = false;

@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import '../services/orphan_cleanup_service.dart';
 import '../services/plan_validation_service.dart';
 import '../services/user_service.dart';
+import '../services/cache_service.dart';
+import '../widgets/loading_skeleton.dart';
 import '../utils/app_logger.dart';
 
 class VacasScreen extends StatefulWidget {
@@ -30,16 +33,25 @@ class _VacasScreenState extends State<VacasScreen> {
   bool _showOnlyLactantes = false;
   List<Map<String, dynamic>> _filteredVacas = [];
   String? _editingId;
+  bool _isLoading = true;
+
+  Timer? _debounceTimer;
 
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(_filterVacas);
+    _searchController.addListener(_onSearchChanged);
     _loadVacas();
+  }
+
+  void _onSearchChanged() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), _filterVacas);
   }
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
     _nomeController.dispose();
     _racaController.dispose();
@@ -54,13 +66,11 @@ class _VacasScreenState extends State<VacasScreen> {
     final query = _searchController.text.toLowerCase();
     setState(() {
       _filteredVacas = _vacas.where((vaca) {
-        final matchesSearch =
-            vaca['nome'].toLowerCase().contains(query) ||
+        final matchesSearch = vaca['nome'].toLowerCase().contains(query) ||
             vaca['raca'].toLowerCase().contains(query);
         final matchesFilter =
             _selectedFilter == 'Todas' || vaca['raca'] == _selectedFilter;
-        final matchesTipo =
-            _selectedTipoFilter == 'Todos' ||
+        final matchesTipo = _selectedTipoFilter == 'Todos' ||
             (vaca['tipo'] ?? 'vaca') == _selectedTipoFilter;
         final matchesLactacao =
             !_showOnlyLactantes || (vaca['lactacao'] ?? false);
@@ -95,18 +105,23 @@ class _VacasScreenState extends State<VacasScreen> {
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
-                setState(() {
-                  _filterVacas();
-                });
+                await _loadVacas();
+                setState(_filterVacas);
               },
-              child: ListView.builder(
-                padding: const EdgeInsets.all(8),
-                itemCount: _filteredVacas.length,
-                itemBuilder: (context, index) {
-                  final vaca = _filteredVacas[index];
-                  return _buildVacaCard(vaca);
-                },
-              ),
+              child: _isLoading
+                  ? ListView.builder(
+                      padding: const EdgeInsets.all(8),
+                      itemCount: 6, // Mostra 6 skeleton cards
+                      itemBuilder: (context, index) => const VacaCardSkeleton(),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(8),
+                      itemCount: _filteredVacas.length,
+                      itemBuilder: (context, index) {
+                        final vaca = _filteredVacas[index];
+                        return _buildVacaCard(vaca);
+                      },
+                    ),
             ),
           ),
         ],
@@ -114,9 +129,10 @@ class _VacasScreenState extends State<VacasScreen> {
       floatingActionButton: Consumer<UserSubscription>(
         builder: (context, subscription, _) {
           return FloatingActionButton(
-            heroTag: "vacas_fab",
+            heroTag: 'vacas_fab',
             onPressed: () async {
-              if (await PlanValidationService.canAddCow(context, subscription)) {
+              if (await PlanValidationService.canAddCow(
+                  context, subscription,)) {
                 _showVacaForm(context);
               }
             },
@@ -239,14 +255,16 @@ class _VacasScreenState extends State<VacasScreen> {
         child: ListTile(
           leading: CircleAvatar(
             backgroundColor: _getTypeColor(tipo),
-            child: Icon(_getTypeIcon(tipo), color: Theme.of(context).colorScheme.onPrimary),
+            child: Icon(_getTypeIcon(tipo),
+                color: Theme.of(context).colorScheme.onPrimary,),
           ),
           title: Row(
             children: [
               Expanded(child: Text(vaca['nome'])),
               if (isYoung)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.secondaryContainer,
                     borderRadius: BorderRadius.circular(12),
@@ -269,11 +287,14 @@ class _VacasScreenState extends State<VacasScreen> {
               Text('Idade: ${vaca['idade']} anos'),
               Text('Peso: ${vaca['peso']} kg'),
               if (vaca['lactacao'] == true)
-                Text('Em lactação', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+                Text('Em lactação',
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,),),
               if (isYoung && _isReadyToPromote(vaca))
                 Container(
                   margin: const EdgeInsets.only(top: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.tertiaryContainer,
                     borderRadius: BorderRadius.circular(8),
@@ -294,16 +315,19 @@ class _VacasScreenState extends State<VacasScreen> {
             children: [
               if (isYoung && _isReadyToPromote(vaca))
                 IconButton(
-                  icon: Icon(Icons.trending_up, color: Theme.of(context).colorScheme.tertiary),
+                  icon: Icon(Icons.trending_up,
+                      color: Theme.of(context).colorScheme.tertiary,),
                   tooltip: 'Promover para vaca adulta',
                   onPressed: () => _promoteAnimal(vaca),
                 ),
               IconButton(
-                icon: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
+                icon: Icon(Icons.edit,
+                    color: Theme.of(context).colorScheme.primary,),
                 onPressed: () => _showVacaForm(context, vaca: vaca),
               ),
               IconButton(
-                icon: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
+                icon: Icon(Icons.delete,
+                    color: Theme.of(context).colorScheme.error,),
                 onPressed: () => _deleteVaca(vaca),
               ),
             ],
@@ -489,16 +513,28 @@ class _VacasScreenState extends State<VacasScreen> {
     final messenger = ScaffoldMessenger.of(context);
 
     if (_editingId != null) {
-      // Buscar peso anterior antes de atualizar
-      final docSnapshot = await FirebaseFirestore.instance
+      // Tentar encontrar a vaca primeiro na subcoleção
+      var docSnapshot = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
           .collection('vacas')
           .doc(_editingId)
           .get();
-      
+
+      final bool isInSubCollection = docSnapshot.exists;
+
+      // Se não existe na subcoleção, verificar na coleção global
+      if (!isInSubCollection) {
+        docSnapshot = await FirebaseFirestore.instance
+            .collection('vacas')
+            .doc(_editingId)
+            .get();
+      }
+
       if (docSnapshot.exists) {
         final dadosAtuais = docSnapshot.data()!;
         final pesoAnterior = dadosAtuais['peso'] as String?;
-        
+
         // Se o peso mudou, salvar no histórico
         if (pesoAnterior != null && pesoAnterior != peso) {
           await _salvarHistoricoPeso(
@@ -508,19 +544,36 @@ class _VacasScreenState extends State<VacasScreen> {
           );
         }
       }
-      
-      // Atualiza vaca existente
-      await FirebaseFirestore.instance
-          .collection('vacas')
-          .doc(_editingId)
-          .set(vacaData, SetOptions(merge: true));
+
+      // Atualizar vaca no local correto (subcoleção ou global)
+      if (isInSubCollection) {
+        await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(user.uid)
+            .collection('vacas')
+            .doc(_editingId)
+            .set(vacaData, SetOptions(merge: true));
+      } else {
+        await FirebaseFirestore.instance
+            .collection('vacas')
+            .doc(_editingId)
+            .set(vacaData, SetOptions(merge: true));
+      }
       if (!mounted) return;
       messenger.showSnackBar(
         const SnackBar(content: Text('Vaca atualizada com sucesso!')),
       );
     } else {
-      // Adiciona nova vaca
-      await FirebaseFirestore.instance.collection('vacas').add(vacaData);
+      // Adiciona nova vaca na subcoleção do usuário para manter consistência
+      await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
+          .collection('vacas')
+          .add(vacaData);
+
+      // Invalidar cache após adicionar
+      CacheService.invalidateVacasCache(user.uid);
+
       if (!mounted) return;
       messenger.showSnackBar(
         const SnackBar(content: Text('Vaca adicionada com sucesso!')),
@@ -550,39 +603,84 @@ class _VacasScreenState extends State<VacasScreen> {
     await FirebaseFirestore.instance
         .collection('historico_peso')
         .add(historicoPesoData);
-    
-    AppLogger.info('💾 Histórico de peso salvo - Anterior: $pesoAnterior kg → Novo: $pesoNovo kg');
+
+    AppLogger.info(
+        '💾 Histórico de peso salvo - Anterior: $pesoAnterior kg → Novo: $pesoNovo kg',);
   }
 
   Future<void> _loadVacas() async {
     try {
+      setState(() {
+        _isLoading = true;
+      });
+
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         throw Exception('Usuário não autenticado');
       }
 
-      final snapshot = await FirebaseFirestore.instance
+      // Tentar buscar no cache primeiro
+      final cacheKey = CacheService.vacasCacheKey(user.uid);
+      final List<Map<String, dynamic>>? cachedVacas =
+          CacheService.get<List<Map<String, dynamic>>>(cacheKey);
+
+      if (cachedVacas != null) {
+        AppLogger.info(
+            '📦 Vacas carregadas do cache para usuário: ${user.uid}',);
+        setState(() {
+          _vacas.clear();
+          _vacas.addAll(cachedVacas);
+          _filterVacas();
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Se não encontrou no cache, buscar no Firestore
+      // Buscar primeiro na subcoleção do usuário
+      var snapshot = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
           .collection('vacas')
-          .where('userId', isEqualTo: user.uid)
           .get();
 
-      AppLogger.info('Carregando vacas para o usuário: ${user.uid}');
-      AppLogger.info('Número de vacas encontradas: ${snapshot.docs.length}');
+      // Se não encontrou na subcoleção, buscar na coleção global
+      if (snapshot.docs.isEmpty) {
+        snapshot = await FirebaseFirestore.instance
+            .collection('vacas')
+            .where('userId', isEqualTo: user.uid)
+            .get();
+      }
+
+      AppLogger.info(
+          '🐄 Carregando vacas do Firestore para o usuário: ${user.uid}',);
+      AppLogger.info('📊 Número de vacas encontradas: ${snapshot.docs.length}');
+
+      final List<Map<String, dynamic>> vacasData = [];
+      for (final doc in snapshot.docs) {
+        final data = {'id': doc.id, ...doc.data()};
+        vacasData.add(data);
+      }
+
+      // Armazenar no cache
+      CacheService.put(cacheKey, vacasData, ttl: const Duration(minutes: 10));
 
       setState(() {
         _vacas.clear();
-        for (var doc in snapshot.docs) {
-          final data = {'id': doc.id, ...doc.data()};
-          print('Vaca carregada: ${data['nome']} (ID: ${data['id']})');
-          _vacas.add(data);
-        }
+        _vacas.addAll(vacasData);
         _filterVacas();
+        _isLoading = false;
       });
     } catch (e) {
-      AppLogger.error('Erro ao carregar vacas: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erro ao carregar vacas: $e')));
+      AppLogger.error('❌ Erro ao carregar vacas: $e');
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar vacas: $e')),
+        );
+      }
     }
   }
 
@@ -622,7 +720,7 @@ class _VacasScreenState extends State<VacasScreen> {
               try {
                 final user = FirebaseAuth.instance.currentUser;
                 if (user == null) return;
-                
+
                 // Mostrar loading
                 showDialog(
                   context: dialogContext,
@@ -641,23 +739,38 @@ class _VacasScreenState extends State<VacasScreen> {
 
                 final batch = FirebaseFirestore.instance.batch();
 
-                for (var doc in producaoSnapshot.docs) {
+                for (final doc in producaoSnapshot.docs) {
                   batch.delete(doc.reference);
                 }
 
-                // 2. Excluir a vaca
-                batch.delete(
-                  FirebaseFirestore.instance
-                      .collection('vacas')
-                      .doc(vaca['id']),
-                );
+                // 2. Verificar onde a vaca está armazenada e excluí-la
+                final vacaSubcollectionRef = FirebaseFirestore.instance
+                    .collection('usuarios')
+                    .doc(user.uid)
+                    .collection('vacas')
+                    .doc(vaca['id']);
+
+                final vacaGlobalRef = FirebaseFirestore.instance
+                    .collection('vacas')
+                    .doc(vaca['id']);
+
+                // Verificar se existe na subcoleção
+                final subcollectionDoc = await vacaSubcollectionRef.get();
+                if (subcollectionDoc.exists) {
+                  batch.delete(vacaSubcollectionRef);
+                } else {
+                  batch.delete(vacaGlobalRef);
+                }
 
                 // Executar batch
                 await batch.commit();
 
+                // Invalidar cache após exclusão
+                CacheService.invalidateVacasCache(user.uid);
+
                 // Limpeza automática de órfãos relacionados à vaca deletada
                 await OrphanCleanupService.cleanupAfterCowDeletion(
-                  vaca['id'], 
+                  vaca['id'],
                   user.uid,
                 );
 
@@ -787,9 +900,8 @@ class _VacasScreenState extends State<VacasScreen> {
 }
 
 class VacaDetailsDialog extends StatefulWidget {
-  final Map<String, dynamic> vaca;
-
   const VacaDetailsDialog({super.key, required this.vaca});
+  final Map<String, dynamic> vaca;
 
   @override
   State<VacaDetailsDialog> createState() => _VacaDetailsDialogState();
@@ -822,8 +934,8 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
     if (user == null) return;
 
     try {
-      print('🔍 Iniciando busca de registros para vaca: ${widget.vaca['id']}');
-      print('🔍 User ID: ${user.uid}');
+      AppLogger.info('🔍 Iniciando busca de registros para vaca: ${widget.vaca['id']}');
+      AppLogger.info('🔍 User ID: ${user.uid}');
 
       // Buscar todos os registros desta vaca na subcoleção correta
       final snapshot = await FirebaseFirestore.instance
@@ -833,37 +945,38 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
           .where('vaca_id', isEqualTo: widget.vaca['id'])
           .get();
 
-      print('🔍 Total de registros encontrados: ${snapshot.docs.length}');
+      AppLogger.info('🔍 Total de registros encontrados: ${snapshot.docs.length}');
 
-      List<Map<String, dynamic>> producao = [];
-      List<Map<String, dynamic>> saude = [];
-      List<Map<String, dynamic>> ciclo = [];
+      final List<Map<String, dynamic>> producao = [];
+      final List<Map<String, dynamic>> saude = [];
+      final List<Map<String, dynamic>> ciclo = [];
 
-      for (var doc in snapshot.docs) {
-        final data = {...doc.data(), 'id': doc.id};
+      for (final doc in snapshot.docs) {
+        final data = <String, dynamic>{...doc.data(), 'id': doc.id};
         final tipo = data['tipo'] as String?;
-        
-        print('🔍 Registro encontrado - Tipo: $tipo, Data: ${data['data']}, VacaId: ${data['vaca_id']}');
+
+        AppLogger.info(
+            '🔍 Registro encontrado - Tipo: $tipo, Data: ${data['data']}, VacaId: ${data['vaca_id']}',);
 
         switch (tipo) {
           case 'Leite':
             producao.add(data);
-            print('📊 Adicionado à produção: quantidade=${data['quantidade']}');
+            AppLogger.info('📊 Adicionado à produção: quantidade=${data['quantidade']}');
             break;
           case 'Saúde':
             saude.add(data);
-            print('🏥 Adicionado à saúde: observacao=${data['observacao']}');
+            AppLogger.info('🏥 Adicionado à saúde: observacao=${data['observacao']}');
             break;
           case 'Ciclo':
             ciclo.add(data);
-            print('🔄 Adicionado ao ciclo: periodo=${data['periodoCiclo']}');
+            AppLogger.info('🔄 Adicionado ao ciclo: periodo=${data['periodoCiclo']}');
             break;
         }
       }
 
-      print('📊 Total produção: ${producao.length}');
-      print('🏥 Total saúde: ${saude.length}');
-      print('🔄 Total ciclo: ${ciclo.length}');
+      AppLogger.info('📊 Total produção: ${producao.length}');
+      AppLogger.info('🏥 Total saúde: ${saude.length}');
+      AppLogger.info('🔄 Total ciclo: ${ciclo.length}');
 
       // Buscar histórico de peso (usando apenas um filtro para evitar índice composto)
       final historicoPesoSnapshot = await FirebaseFirestore.instance
@@ -871,15 +984,15 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
           .where('userId', isEqualTo: user.uid)
           .get();
 
-      List<Map<String, dynamic>> historicoPeso = [];
-      for (var doc in historicoPesoSnapshot.docs) {
+      final List<Map<String, dynamic>> historicoPeso = [];
+      for (final doc in historicoPesoSnapshot.docs) {
         final data = {...doc.data(), 'id': doc.id};
         // Filtrar por vaca_id no lado do cliente
         if (data['vaca_id'] == widget.vaca['id']) {
           historicoPeso.add(data);
         }
       }
-      
+
       // Ordenar no lado do cliente por dataAlteracao (mais recente primeiro)
       historicoPeso.sort((a, b) {
         final timestampA = a['dataAlteracao'] as Timestamp?;
@@ -887,8 +1000,8 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
         if (timestampA == null || timestampB == null) return 0;
         return timestampB.compareTo(timestampA);
       });
-      
-      print('⚖️ Total histórico de peso: ${historicoPeso.length}');
+
+      AppLogger.info('⚖️ Total histórico de peso: ${historicoPeso.length}');
 
       if (mounted) {
         setState(() {
@@ -956,7 +1069,9 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
                         Text(
                           vaca['nome'],
                           style: TextStyle(
-                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onPrimaryContainer,
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                           ),
@@ -964,7 +1079,10 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
                         Text(
                           '${_formatTipo(tipo)} • ${vaca['raca']}',
                           style: TextStyle(
-                            color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onPrimaryContainer
+                                .withValues(alpha: 0.7),
                             fontSize: 14,
                           ),
                         ),
@@ -973,7 +1091,9 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(Icons.close, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                    icon: Icon(Icons.close,
+                        color:
+                            Theme.of(context).colorScheme.onPrimaryContainer,),
                   ),
                 ],
               ),
@@ -984,11 +1104,13 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
               child: Row(
                 children: [
                   Expanded(
-                    child: _buildInfoCard('Idade', '${vaca['idade']} anos', Icons.cake),
+                    child: _buildInfoCard(
+                        'Idade', '${vaca['idade']} anos', Icons.cake,),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _buildInfoCard('Peso', '${vaca['peso']} kg', Icons.monitor_weight),
+                    child: _buildInfoCard(
+                        'Peso', '${vaca['peso']} kg', Icons.monitor_weight,),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -1005,7 +1127,8 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
             TabBar(
               controller: _tabController,
               labelColor: Theme.of(context).colorScheme.primary,
-              unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
+              unselectedLabelColor:
+                  Theme.of(context).colorScheme.onSurfaceVariant,
               tabs: const [
                 Tab(text: 'Geral'),
                 Tab(text: 'Produção'),
@@ -1066,7 +1189,7 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
 
   Widget _buildGeralTab() {
     final vaca = widget.vaca;
-    
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -1086,8 +1209,10 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
             _buildDetailRow('Mãe', vaca['mae']),
           if (vaca['pai'] != null && vaca['pai'].toString().isNotEmpty)
             _buildDetailRow('Pai', vaca['pai']),
-          _buildDetailRow('Status Reprodutivo', vaca['status_reprodutivo'] ?? 'Não definido'),
-          _buildDetailRow('Em Lactação', vaca['lactacao'] == true ? 'Sim' : 'Não'),
+          _buildDetailRow('Status Reprodutivo',
+              vaca['status_reprodutivo'] ?? 'Não definido',),
+          _buildDetailRow(
+              'Em Lactação', vaca['lactacao'] == true ? 'Sim' : 'Não',),
         ],
       ),
     );
@@ -1103,7 +1228,9 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.water_drop_outlined, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            Icon(Icons.water_drop_outlined,
+                size: 48,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,),
             const SizedBox(height: 16),
             const Text('Nenhum registro de produção encontrado'),
           ],
@@ -1116,13 +1243,15 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
     double mediaProducao = 0;
     double maiorProducao = 0;
 
-    for (var registro in _registrosProducao) {
+    for (final registro in _registrosProducao) {
       final quantidade = (registro['quantidade'] as num?)?.toDouble() ?? 0;
       totalProducao += quantidade;
       if (quantidade > maiorProducao) maiorProducao = quantidade;
     }
 
-    mediaProducao = _registrosProducao.isNotEmpty ? totalProducao / _registrosProducao.length : 0;
+    mediaProducao = _registrosProducao.isNotEmpty
+        ? totalProducao / _registrosProducao.length
+        : 0;
 
     return Column(
       children: [
@@ -1132,15 +1261,18 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
           child: Row(
             children: [
               Expanded(
-                child: _buildStatCard('Total', '${totalProducao.toStringAsFixed(1)}L', Icons.opacity),
+                child: _buildStatCard('Total',
+                    '${totalProducao.toStringAsFixed(1)}L', Icons.opacity,),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _buildStatCard('Média', '${mediaProducao.toStringAsFixed(1)}L', Icons.trending_up),
+                child: _buildStatCard('Média',
+                    '${mediaProducao.toStringAsFixed(1)}L', Icons.trending_up,),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _buildStatCard('Maior', '${maiorProducao.toStringAsFixed(1)}L', Icons.star),
+                child: _buildStatCard('Maior',
+                    '${maiorProducao.toStringAsFixed(1)}L', Icons.star,),
               ),
             ],
           ),
@@ -1153,14 +1285,19 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
             itemBuilder: (context, index) {
               final registro = _registrosProducao[index];
               final data = registro['data'];
-              if (data == null) return const SizedBox(); // Pular registros sem data
+              if (data == null) {
+                return const SizedBox(); // Pular registros sem data
+              }
               final dataHora = (data as Timestamp).toDate();
-              final quantidade = (registro['quantidade'] as num?)?.toDouble() ?? 0;
+              final quantidade =
+                  (registro['quantidade'] as num?)?.toDouble() ?? 0;
 
               return ListTile(
-                leading: Icon(Icons.water_drop, color: Theme.of(context).colorScheme.primary),
+                leading: Icon(Icons.water_drop,
+                    color: Theme.of(context).colorScheme.primary,),
                 title: Text('${quantidade.toStringAsFixed(1)} litros'),
-                subtitle: Text('${dataHora.day}/${dataHora.month}/${dataHora.year} às ${dataHora.hour.toString().padLeft(2, '0')}:${dataHora.minute.toString().padLeft(2, '0')}'),
+                subtitle: Text(
+                    '${dataHora.day}/${dataHora.month}/${dataHora.year} às ${dataHora.hour.toString().padLeft(2, '0')}:${dataHora.minute.toString().padLeft(2, '0')}',),
               );
             },
           ),
@@ -1179,7 +1316,9 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.health_and_safety_outlined, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            Icon(Icons.health_and_safety_outlined,
+                size: 48,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,),
             const SizedBox(height: 16),
             const Text('Nenhum registro de saúde encontrado'),
           ],
@@ -1200,9 +1339,11 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
         return Card(
           color: Theme.of(context).colorScheme.surfaceContainer,
           child: ListTile(
-            leading: Icon(Icons.health_and_safety, color: Theme.of(context).colorScheme.error),
+            leading: Icon(Icons.health_and_safety,
+                color: Theme.of(context).colorScheme.error,),
             title: Text(observacao),
-            subtitle: Text('${dataHora.day}/${dataHora.month}/${dataHora.year} às ${dataHora.hour.toString().padLeft(2, '0')}:${dataHora.minute.toString().padLeft(2, '0')}'),
+            subtitle: Text(
+                '${dataHora.day}/${dataHora.month}/${dataHora.year} às ${dataHora.hour.toString().padLeft(2, '0')}:${dataHora.minute.toString().padLeft(2, '0')}',),
           ),
         );
       },
@@ -1219,7 +1360,9 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.autorenew_outlined, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            Icon(Icons.autorenew_outlined,
+                size: 48,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,),
             const SizedBox(height: 16),
             const Text('Nenhum registro de ciclo encontrado'),
           ],
@@ -1241,12 +1384,14 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
         return Card(
           color: Theme.of(context).colorScheme.surfaceContainer,
           child: ListTile(
-            leading: Icon(_getCicloIcon(periodoCiclo), color: _getCicloColor(periodoCiclo)),
+            leading: Icon(_getCicloIcon(periodoCiclo),
+                color: _getCicloColor(periodoCiclo),),
             title: Text(periodoCiclo),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${dataHora.day}/${dataHora.month}/${dataHora.year} às ${dataHora.hour.toString().padLeft(2, '0')}:${dataHora.minute.toString().padLeft(2, '0')}'),
+                Text(
+                    '${dataHora.day}/${dataHora.month}/${dataHora.year} às ${dataHora.hour.toString().padLeft(2, '0')}:${dataHora.minute.toString().padLeft(2, '0')}',),
                 if (observacao.isNotEmpty) Text(observacao),
               ],
             ),
@@ -1269,7 +1414,9 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  Icon(Icons.monitor_weight, color: Theme.of(context).colorScheme.onPrimaryContainer, size: 32),
+                  Icon(Icons.monitor_weight,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      size: 32,),
                   const SizedBox(width: 12),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1278,7 +1425,8 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
                         'Peso Atual',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          color:
+                              Theme.of(context).colorScheme.onPrimaryContainer,
                           fontSize: 16,
                         ),
                       ),
@@ -1296,16 +1444,16 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // Título do histórico
           Text(
             'Histórico de Alterações',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           const SizedBox(height: 8),
-          
+
           // Lista de histórico
           Expanded(
             child: _historicoPeso.isEmpty
@@ -1313,13 +1461,17 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.history, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        Icon(Icons.history,
+                            size: 64,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,),
                         const SizedBox(height: 16),
                         Text(
                           'Nenhuma alteração de peso registrada',
                           style: TextStyle(
                             fontSize: 16,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -1334,23 +1486,31 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
                           : DateTime.now();
                       final pesoAnterior = historico['pesoAnterior'] as String;
                       final pesoNovo = historico['pesoNovo'] as String;
-                      
-                      final diferenca = (double.tryParse(pesoNovo) ?? 0) - 
-                                       (double.tryParse(pesoAnterior) ?? 0);
-                      
+
+                      final diferenca = (double.tryParse(pesoNovo) ?? 0) -
+                          (double.tryParse(pesoAnterior) ?? 0);
+
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         color: Theme.of(context).colorScheme.surfaceContainer,
                         child: ListTile(
                           leading: CircleAvatar(
-                            backgroundColor: diferenca >= 0 
-                                ? Theme.of(context).colorScheme.tertiaryContainer
+                            backgroundColor: diferenca >= 0
+                                ? Theme.of(context)
+                                    .colorScheme
+                                    .tertiaryContainer
                                 : Theme.of(context).colorScheme.errorContainer,
                             child: Icon(
-                              diferenca >= 0 ? Icons.trending_up : Icons.trending_down,
-                              color: diferenca >= 0 
-                                  ? Theme.of(context).colorScheme.onTertiaryContainer
-                                  : Theme.of(context).colorScheme.onErrorContainer,
+                              diferenca >= 0
+                                  ? Icons.trending_up
+                                  : Icons.trending_down,
+                              color: diferenca >= 0
+                                  ? Theme.of(context)
+                                      .colorScheme
+                                      .onTertiaryContainer
+                                  : Theme.of(context)
+                                      .colorScheme
+                                      .onErrorContainer,
                             ),
                           ),
                           title: Row(
@@ -1359,14 +1519,18 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
                                 '$pesoAnterior kg',
                                 style: TextStyle(
                                   decoration: TextDecoration.lineThrough,
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Icon(
                                 Icons.arrow_forward,
                                 size: 16,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                               ),
                               const SizedBox(width: 8),
                               Text(
@@ -1388,7 +1552,7 @@ class _VacaDetailsDialogState extends State<VacaDetailsDialog>
                               Text(
                                 '${diferenca >= 0 ? '+' : ''}${diferenca.toStringAsFixed(1)} kg',
                                 style: TextStyle(
-                                  color: diferenca >= 0 
+                                  color: diferenca >= 0
                                       ? Theme.of(context).colorScheme.tertiary
                                       : Theme.of(context).colorScheme.error,
                                   fontWeight: FontWeight.bold,

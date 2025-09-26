@@ -7,9 +7,8 @@ import '../services/user_service.dart';
 import '../utils/app_logger.dart';
 
 class RegistroProducaoScreen extends StatefulWidget {
-  final VoidCallback? onNavigateToVacas;
-
   const RegistroProducaoScreen({super.key, this.onNavigateToVacas});
+  final VoidCallback? onNavigateToVacas;
 
   @override
   State<RegistroProducaoScreen> createState() => _RegistroProducaoScreenState();
@@ -79,7 +78,8 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
         setState(() {
           _vacas = snapshot.docs.map((doc) {
             final data = {'id': doc.id, ...doc.data()};
-            AppLogger.info('Vaca carregada: ${data['nome']} (ID: ${data['id']})');
+            AppLogger.info(
+                'Vaca carregada: ${data['nome']} (ID: ${data['id']})',);
             return data;
           }).toList();
           _isRefreshing = false;
@@ -130,7 +130,11 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
+                    border: Border.all(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withValues(alpha: 0.3),),
                   ),
                   child: const Row(
                     children: [
@@ -327,21 +331,20 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
               if (_selectedTipo == 'Ciclo')
                 DropdownButtonFormField<String>(
                   value: _selectedPeriodoCiclo,
-                  items:
-                      [
-                            'Cio',
-                            'Cobertura',
-                            'Prenhez Confirmada',
-                            'Seca',
-                            'Parto',
-                          ]
-                          .map(
-                            (periodo) => DropdownMenuItem(
-                              value: periodo,
-                              child: Text(periodo),
-                            ),
-                          )
-                          .toList(),
+                  items: [
+                    'Cio',
+                    'Cobertura',
+                    'Prenhez Confirmada',
+                    'Seca',
+                    'Parto',
+                  ]
+                      .map(
+                        (periodo) => DropdownMenuItem(
+                          value: periodo,
+                          child: Text(periodo),
+                        ),
+                      )
+                      .toList(),
                   onChanged: (value) {
                     setState(() {
                       _selectedPeriodoCiclo = value!;
@@ -364,7 +367,7 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
                           border: OutlineInputBorder(),
                         ),
                         child: Text(
-                          "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
+                          '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
                         ),
                       ),
                     ),
@@ -390,7 +393,8 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
                 child: Consumer<UserSubscription>(
                   builder: (context, subscription, _) {
                     return ElevatedButton(
-                      onPressed: _isSaving ? null : () => _submitForm(subscription),
+                      onPressed:
+                          _isSaving ? null : () => _submitForm(subscription),
                       child: _isSaving
                           ? const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -410,9 +414,9 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
                               ],
                             )
                           : const Text('Salvar Registro'),
-                      );
-                    },
-                  ),
+                    );
+                  },
+                ),
               ),
             ],
           ),
@@ -448,32 +452,33 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
   }
 
   Future<void> _submitForm(UserSubscription subscription) async {
-    print('🚀 [DEBUG] Iniciando submissão do formulário...');
-    
+    AppLogger.info('🚀 [DEBUG] Iniciando submissão do formulário...');
+
     if (!_formKey.currentState!.validate()) {
-      print('❌ [DEBUG] Validação do formulário falhou');
+      AppLogger.info('❌ [DEBUG] Validação do formulário falhou');
       return;
     }
 
     if (_isSaving) {
-      print('⚠️ [DEBUG] Já salvando - evitando duplo clique');
+      AppLogger.info('⚠️ [DEBUG] Já salvando - evitando duplo clique');
       return; // Evitar duplo clique
     }
 
-    print('📝 [DEBUG] Tipo selecionado: $_selectedTipo');
+    AppLogger.info('📝 [DEBUG] Tipo selecionado: $_selectedTipo');
 
     // Verificar limitações do plano apenas para registros de produção
     if (_selectedTipo == 'Leite') {
-      print('🔍 [DEBUG] Verificando limitações do plano...');
-      final canAdd = await PlanValidationService.canAddProductionRecord(context, subscription);
-      print('✅ [DEBUG] Resultado da validação: $canAdd');
+      AppLogger.info('🔍 [DEBUG] Verificando limitações do plano...');
+      final canAdd = await PlanValidationService.canAddProductionRecord(
+          context, subscription,);
+      AppLogger.info('✅ [DEBUG] Resultado da validação: $canAdd');
       if (!canAdd) {
-        print('🚫 [DEBUG] Validação falhou - cancelando submissão');
+        AppLogger.info('🚫 [DEBUG] Validação falhou - cancelando submissão');
         return;
       }
     }
 
-    print('💾 [DEBUG] Iniciando salvamento...');
+    AppLogger.info('💾 [DEBUG] Iniciando salvamento...');
     setState(() {
       _isSaving = true;
     });
@@ -501,9 +506,9 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
     );
 
     try {
-      print('📅 [DEBUG] Data/hora sendo salva: $dataHora');
-      print('🔍 [DEBUG] Timestamp: ${Timestamp.fromDate(dataHora)}');
-      
+      AppLogger.info('📅 [DEBUG] Data/hora sendo salva: $dataHora');
+      AppLogger.info('🔍 [DEBUG] Timestamp: ${Timestamp.fromDate(dataHora)}');
+
       final registroData = {
         'vaca_id': _selectedVacaId!, // Corrigir nome do campo
         'tipo': _selectedTipo,
@@ -526,23 +531,24 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
         }
       }
 
-      print('💾 [DEBUG] Salvando registro no Firestore...');
-      print('📊 [DEBUG] Dados do registro:');
-      print('  - Usuário: ${user.uid}');
-      print('  - Vaca ID: ${_selectedVacaId}');
-      print('  - Tipo: ${_selectedTipo}');
-      print('  - Data/Hora: $dataHora');
-      print('  - Timestamp: ${Timestamp.fromDate(dataHora)}');
-      print('  - Caminho: usuarios/${user.uid}/registros_producao');
+      AppLogger.info('💾 [DEBUG] Salvando registro no Firestore...');
+      AppLogger.info('📊 [DEBUG] Dados do registro:');
+      AppLogger.info('  - Usuário: ${user.uid}');
+      AppLogger.info('  - Vaca ID: $_selectedVacaId');
+      AppLogger.info('  - Tipo: $_selectedTipo');
+      AppLogger.info('  - Data/Hora: $dataHora');
+      AppLogger.info('  - Timestamp: ${Timestamp.fromDate(dataHora)}');
+      AppLogger.info('  - Caminho: usuarios/${user.uid}/registros_producao');
 
       await FirebaseFirestore.instance
           .collection('usuarios')
           .doc(user.uid)
           .collection('registros_producao')
           .add(registroData);
-          
-      print('✅ [DEBUG] Registro salvo com sucesso no Firestore!');
-      print('🔍 [DEBUG] Caminho final: usuarios/${user.uid}/registros_producao/{doc_id}');
+
+      AppLogger.info('✅ [DEBUG] Registro salvo com sucesso no Firestore!');
+      AppLogger.info(
+          '🔍 [DEBUG] Caminho final: usuarios/${user.uid}/registros_producao/{doc_id}',);
 
       if (!mounted) return;
 
@@ -559,14 +565,15 @@ class _RegistroProducaoScreenState extends State<RegistroProducaoScreen>
 
       // Forçar atualização dos relatórios usando callback simples
       try {
-        print('🔄 [REGISTRO] Solicitando atualização dos relatórios...');
+        AppLogger.info('🔄 [REGISTRO] Solicitando atualização dos relatórios...');
         // Aguardar um pouco antes de tentar recarregar para garantir que o Firestore processou
         Future.delayed(const Duration(milliseconds: 500), () {
           // Aqui vamos implementar uma solução mais robusta
-          print('✅ [REGISTRO] Dados salvos com sucesso, relatórios devem ser atualizados automaticamente');
+          AppLogger.info(
+              '✅ [REGISTRO] Dados salvos com sucesso, relatórios devem ser atualizados automaticamente',);
         });
       } catch (e) {
-        print('❌ [REGISTRO] Erro ao processar callback de atualização: $e');
+        AppLogger.info('❌ [REGISTRO] Erro ao processar callback de atualização: $e');
       }
 
       // Limpar formulário

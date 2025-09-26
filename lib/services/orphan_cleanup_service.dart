@@ -11,42 +11,43 @@ class OrphanCleanupService {
   static Future<OrphanCleanupResult> performFullCleanup() async {
     try {
       AppLogger.info('🧹 Iniciando limpeza completa de dados órfãos');
-      
+
       final user = _auth.currentUser;
       if (user == null) {
         throw Exception('Usuário não autenticado');
       }
 
       final result = OrphanCleanupResult();
-      
+
       // 1. Limpar registros de produção órfãos
       final prodOrphans = await _cleanOrphanProductionRecords(user.uid);
       result.productionRecordsDeleted = prodOrphans;
-      
+
       // 2. Limpar alertas órfãos
       final alertOrphans = await _cleanOrphanAlerts(user.uid);
       result.alertsDeleted = alertOrphans;
-      
+
       // 3. Limpar alertas individuais órfãos
       final individualOrphans = await _cleanOrphanIndividualAlerts(user.uid);
       result.individualAlertsDeleted = individualOrphans;
-      
+
       // 4. Limpar atividades órfãs (se necessário)
       final activityOrphans = await _cleanOrphanActivities(user.uid);
       result.activitiesDeleted = activityOrphans;
-      
+
       // 5. Limpar backups órfãos
       final backupOrphans = await _cleanOrphanBackups(user.uid);
       result.backupsDeleted = backupOrphans;
 
-      result.totalOrphansDeleted = result.productionRecordsDeleted + 
-                                  result.alertsDeleted + 
-                                  result.individualAlertsDeleted + 
-                                  result.activitiesDeleted + 
-                                  result.backupsDeleted;
+      result.totalOrphansDeleted = result.productionRecordsDeleted +
+          result.alertsDeleted +
+          result.individualAlertsDeleted +
+          result.activitiesDeleted +
+          result.backupsDeleted;
 
-      AppLogger.info('✅ Limpeza concluída: ${result.totalOrphansDeleted} registros órfãos removidos');
-      
+      AppLogger.info(
+          '✅ Limpeza concluída: ${result.totalOrphansDeleted} registros órfãos removidos',);
+
       return result;
     } catch (e) {
       AppLogger.error('❌ Erro na limpeza de órfãos', e);
@@ -58,44 +59,47 @@ class OrphanCleanupService {
   static Future<int> _cleanOrphanProductionRecords(String userId) async {
     try {
       AppLogger.info('🔍 Verificando registros de produção órfãos');
-      
+
       // Buscar todas as vacas existentes do usuário na coleção GLOBAL
       final vacasSnapshot = await _firestore
           .collection('vacas')
           .where('userId', isEqualTo: userId)
           .get();
-      
+
       final existingVacaIds = vacasSnapshot.docs.map((doc) => doc.id).toSet();
-      
-      AppLogger.info('🐄 Total de vacas encontradas: ${existingVacaIds.length}');
-      
+
+      AppLogger.info(
+          '🐄 Total de vacas encontradas: ${existingVacaIds.length}',);
+
       // Buscar todos os registros de produção do usuário na SUBCOLEÇÃO
       final producaoSnapshot = await _firestore
           .collection('usuarios')
           .doc(userId)
           .collection('registros_producao')
           .get();
-      
+
       int orphansDeleted = 0;
       final batch = _firestore.batch();
-      
-      for (var doc in producaoSnapshot.docs) {
+
+      for (final doc in producaoSnapshot.docs) {
         final data = doc.data();
         final vacaId = data['vaca_id'] as String?; // Campo correto é vaca_id
-        
+
         // Se o registro referencia uma vaca que não existe mais
         if (vacaId != null && !existingVacaIds.contains(vacaId)) {
           batch.delete(doc.reference);
           orphansDeleted++;
-          AppLogger.warning('🗑️ Registro órfão encontrado: ${doc.id} -> vaca inexistente: $vacaId');
+          AppLogger.warning(
+              '🗑️ Registro órfão encontrado: ${doc.id} -> vaca inexistente: $vacaId',);
         }
       }
-      
+
       if (orphansDeleted > 0) {
         await batch.commit();
-        AppLogger.info('✅ Removidos $orphansDeleted registros de produção órfãos');
+        AppLogger.info(
+            '✅ Removidos $orphansDeleted registros de produção órfãos',);
       }
-      
+
       return orphansDeleted;
     } catch (e) {
       AppLogger.error('❌ Erro ao limpar registros de produção órfãos', e);
@@ -107,40 +111,40 @@ class OrphanCleanupService {
   static Future<int> _cleanOrphanAlerts(String userId) async {
     try {
       AppLogger.info('🔍 Verificando alertas de produção órfãos');
-      
+
       // Buscar todas as vacas existentes do usuário
       final vacasSnapshot = await _firestore
           .collection('vacas')
           .where('userId', isEqualTo: userId)
           .get();
-      
+
       final existingVacaIds = vacasSnapshot.docs.map((doc) => doc.id).toSet();
-      
+
       // Buscar todos os alertas (sem filtro por userId pois não têm esse campo)
-      final alertsSnapshot = await _firestore
-          .collection('alertas_producao')
-          .get();
-      
+      final alertsSnapshot =
+          await _firestore.collection('alertas_producao').get();
+
       int orphansDeleted = 0;
       final batch = _firestore.batch();
-      
-      for (var doc in alertsSnapshot.docs) {
+
+      for (final doc in alertsSnapshot.docs) {
         final data = doc.data();
         final vacaId = data['vacaId'] as String?;
-        
+
         // Se o alerta referencia uma vaca que não existe mais
         if (vacaId != null && !existingVacaIds.contains(vacaId)) {
           batch.delete(doc.reference);
           orphansDeleted++;
-          AppLogger.warning('🗑️ Alerta órfão encontrado: ${doc.id} -> vaca inexistente: $vacaId');
+          AppLogger.warning(
+              '🗑️ Alerta órfão encontrado: ${doc.id} -> vaca inexistente: $vacaId',);
         }
       }
-      
+
       if (orphansDeleted > 0) {
         await batch.commit();
         AppLogger.info('✅ Removidos $orphansDeleted alertas órfãos');
       }
-      
+
       return orphansDeleted;
     } catch (e) {
       AppLogger.error('❌ Erro ao limpar alertas órfãos', e);
@@ -152,39 +156,39 @@ class OrphanCleanupService {
   static Future<int> _cleanOrphanIndividualAlerts(String userId) async {
     try {
       AppLogger.info('🔍 Verificando alertas individuais órfãos');
-      
+
       // Buscar todas as vacas existentes do usuário
       final vacasSnapshot = await _firestore
           .collection('vacas')
           .where('userId', isEqualTo: userId)
           .get();
-      
+
       final existingVacaIds = vacasSnapshot.docs.map((doc) => doc.id).toSet();
-      
+
       // Buscar alertas individuais que são documentos com ID = vacaId
       int orphansDeleted = 0;
       final batch = _firestore.batch();
-      
+
       // Verificar cada vaca ID se tem alerta individual órfão
-      final individualAlertsSnapshot = await _firestore
-          .collection('alertas_individuais')
-          .get();
-      
-      for (var doc in individualAlertsSnapshot.docs) {
+      final individualAlertsSnapshot =
+          await _firestore.collection('alertas_individuais').get();
+
+      for (final doc in individualAlertsSnapshot.docs) {
         final vacaId = doc.id; // O ID do documento é o ID da vaca
-        
+
         if (!existingVacaIds.contains(vacaId)) {
           batch.delete(doc.reference);
           orphansDeleted++;
           AppLogger.warning('🗑️ Alerta individual órfão encontrado: $vacaId');
         }
       }
-      
+
       if (orphansDeleted > 0) {
         await batch.commit();
-        AppLogger.info('✅ Removidos $orphansDeleted alertas individuais órfãos');
+        AppLogger.info(
+            '✅ Removidos $orphansDeleted alertas individuais órfãos',);
       }
-      
+
       return orphansDeleted;
     } catch (e) {
       AppLogger.error('❌ Erro ao limpar alertas individuais órfãos', e);
@@ -196,11 +200,11 @@ class OrphanCleanupService {
   static Future<int> _cleanOrphanActivities(String userId) async {
     try {
       AppLogger.info('🔍 Verificando atividades órfãs');
-      
+
       // Como as atividades são armazenadas no AtividadesRepository (em memória),
       // não há limpeza necessária aqui, mas podemos verificar dados persistidos
       // se no futuro as atividades forem salvas no Firestore
-      
+
       return 0;
     } catch (e) {
       AppLogger.error('❌ Erro ao verificar atividades', e);
@@ -212,11 +216,11 @@ class OrphanCleanupService {
   static Future<int> _cleanOrphanBackups(String userId) async {
     try {
       AppLogger.info('🔍 Verificando backups órfãos');
-      
+
       // Por agora, pular limpeza de backups para evitar problema de índice
       // Isso será tratado pelo BackupService que tem sua própria lógica de limpeza
       AppLogger.info('� Limpeza de backups delegada ao BackupService');
-      
+
       return 0;
     } catch (e) {
       AppLogger.error('❌ Erro ao limpar backups órfãos', e);
@@ -228,39 +232,40 @@ class OrphanCleanupService {
   static Future<OrphanCleanupResult> checkOrphansOnly() async {
     try {
       AppLogger.info('🔍 Verificando órfãos (modo consulta apenas)');
-      
+
       final user = _auth.currentUser;
       if (user == null) {
         throw Exception('Usuário não autenticado');
       }
 
       final result = OrphanCleanupResult();
-      
+
       // Buscar todas as vacas existentes
       final vacasSnapshot = await _firestore
           .collection('vacas')
           .where('userId', isEqualTo: user.uid)
           .get();
-      
+
       final existingVacaIds = vacasSnapshot.docs.map((doc) => doc.id).toSet();
-      
+
       // Contar registros órfãos (sem deletar)
       final producaoSnapshot = await _firestore
           .collection('registros_producao')
           .where('userId', isEqualTo: user.uid)
           .get();
-      
-      for (var doc in producaoSnapshot.docs) {
+
+      for (final doc in producaoSnapshot.docs) {
         final data = doc.data();
         final vacaId = data['vacaId'] as String?;
-        
+
         if (vacaId != null && !existingVacaIds.contains(vacaId)) {
           result.productionRecordsDeleted++;
         }
       }
-      
-      AppLogger.info('📊 Encontrados ${result.productionRecordsDeleted} registros órfãos');
-      
+
+      AppLogger.info(
+          '📊 Encontrados ${result.productionRecordsDeleted} registros órfãos',);
+
       return result;
     } catch (e) {
       AppLogger.error('❌ Erro na verificação de órfãos', e);
@@ -269,12 +274,13 @@ class OrphanCleanupService {
   }
 
   /// Limpa órfãos de uma vaca específica que foi deletada
-  static Future<void> cleanupAfterCowDeletion(String cowId, String userId) async {
+  static Future<void> cleanupAfterCowDeletion(
+      String cowId, String userId,) async {
     try {
       AppLogger.info('🧹 Limpando dados órfãos da vaca: $cowId');
-      
+
       final batch = _firestore.batch();
-      
+
       // Limpar registros de produção na subcoleção correta
       final producaoQuery = await _firestore
           .collection('usuarios')
@@ -282,30 +288,29 @@ class OrphanCleanupService {
           .collection('registros_producao')
           .where('vaca_id', isEqualTo: cowId)
           .get();
-      
-      for (var doc in producaoQuery.docs) {
+
+      for (final doc in producaoQuery.docs) {
         batch.delete(doc.reference);
       }
-      
+
       // Limpar alertas
       final alertsQuery = await _firestore
           .collection('alertas_producao')
           .where('vacaId', isEqualTo: cowId)
           .get();
-      
-      for (var doc in alertsQuery.docs) {
+
+      for (final doc in alertsQuery.docs) {
         batch.delete(doc.reference);
       }
-      
+
       // Limpar alerta individual
-      final individualAlertRef = _firestore
-          .collection('alertas_individuais')
-          .doc(cowId);
-      
+      final individualAlertRef =
+          _firestore.collection('alertas_individuais').doc(cowId);
+
       batch.delete(individualAlertRef);
-      
+
       await batch.commit();
-      
+
       AppLogger.info('✅ Limpeza da vaca $cowId concluída');
     } catch (e) {
       AppLogger.error('❌ Erro na limpeza da vaca $cowId', e);

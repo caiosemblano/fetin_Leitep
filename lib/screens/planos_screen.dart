@@ -45,7 +45,10 @@ class PlanosScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Meu Plano'),
+        title: const Text(
+          'Meu Plano',
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: Colors.blue[800],
         foregroundColor: Colors.white,
       ),
@@ -71,7 +74,7 @@ class PlanosScreen extends StatelessWidget {
             _buildPlanoCard(
               context: context,
               title: 'Intermediário',
-              price: 'R\$ 59,90/mês',
+              price: r'R$ 59,90/mês',
               features: [
                 'Até 50 vacas cadastradas',
                 'Controle completo de produção',
@@ -88,7 +91,7 @@ class PlanosScreen extends StatelessWidget {
             _buildPlanoCard(
               context: context,
               title: 'Premium',
-              price: 'R\$ 109,90/mês',
+              price: r'R$ 109,90/mês',
               features: [
                 'Vacas ilimitadas',
                 'Todas as funcionalidades',
@@ -139,7 +142,10 @@ class PlanosScreen extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               price,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+              ),
             ),
             const Divider(height: 24),
             ...features.map(
@@ -153,7 +159,9 @@ class PlanosScreen extends StatelessWidget {
                       size: 18,
                     ),
                     const SizedBox(width: 8),
-                    Expanded(child: Text(feature)),
+                    Expanded(
+                      child: Text(feature),
+                    ),
                   ],
                 ),
               ),

@@ -11,7 +11,7 @@ class PageTransitions {
         const end = Offset.zero;
         const curve = Curves.easeInOut;
 
-        var tween = Tween(begin: begin, end: end).chain(
+        final tween = Tween(begin: begin, end: end).chain(
           CurveTween(curve: curve),
         );
 
@@ -47,7 +47,7 @@ class PageTransitions {
         const end = 1.0;
         const curve = Curves.elasticOut;
 
-        var tween = Tween(begin: begin, end: end).chain(
+        final tween = Tween(begin: begin, end: end).chain(
           CurveTween(curve: curve),
         );
 
@@ -69,7 +69,7 @@ class PageTransitions {
         const end = Offset.zero;
         const curve = Curves.easeOutCubic;
 
-        var tween = Tween(begin: begin, end: end).chain(
+        final tween = Tween(begin: begin, end: end).chain(
           CurveTween(curve: curve),
         );
 
@@ -84,19 +84,19 @@ class PageTransitions {
 
 // Widget para adicionar animações suaves aos elementos da UI
 class SmoothAnimatedContainer extends StatefulWidget {
-  final Widget child;
-  final Duration duration;
-  final Curve curve;
-
   const SmoothAnimatedContainer({
     super.key,
     required this.child,
     this.duration = const Duration(milliseconds: 200),
     this.curve = Curves.easeInOut,
   });
+  final Widget child;
+  final Duration duration;
+  final Curve curve;
 
   @override
-  State<SmoothAnimatedContainer> createState() => _SmoothAnimatedContainerState();
+  State<SmoothAnimatedContainer> createState() =>
+      _SmoothAnimatedContainerState();
 }
 
 class _SmoothAnimatedContainerState extends State<SmoothAnimatedContainer>

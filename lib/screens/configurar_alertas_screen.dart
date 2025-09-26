@@ -7,7 +7,8 @@ class ConfigurarAlertasScreen extends StatefulWidget {
   const ConfigurarAlertasScreen({super.key});
 
   @override
-  State<ConfigurarAlertasScreen> createState() => _ConfigurarAlertasScreenState();
+  State<ConfigurarAlertasScreen> createState() =>
+      _ConfigurarAlertasScreenState();
 }
 
 class _ConfigurarAlertasScreenState extends State<ConfigurarAlertasScreen> {
@@ -43,10 +44,12 @@ class _ConfigurarAlertasScreenState extends State<ConfigurarAlertasScreen> {
         .get();
 
     setState(() {
-      _vacas = snapshot.docs.map((doc) => {
-        'id': doc.id,
-        ...doc.data(),
-      }).toList();
+      _vacas = snapshot.docs
+          .map((doc) => {
+                'id': doc.id,
+                ...doc.data(),
+              },)
+          .toList();
     });
   }
 
@@ -57,8 +60,7 @@ class _ConfigurarAlertasScreenState extends State<ConfigurarAlertasScreen> {
 
     setState(() {
       _alertasConfigurados = {
-        for (var doc in snapshot.docs)
-          doc.id: doc.data()
+        for (final doc in snapshot.docs) doc.id: doc.data(),
       };
     });
   }
@@ -67,7 +69,7 @@ class _ConfigurarAlertasScreenState extends State<ConfigurarAlertasScreen> {
     final vacaId = vaca['id'] as String;
     final vacaNome = vaca['nome'] as String;
     final alertaAtual = _alertasConfigurados[vacaId];
-    
+
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => _AlertConfigDialog(
@@ -86,7 +88,7 @@ class _ConfigurarAlertasScreenState extends State<ConfigurarAlertasScreen> {
       );
 
       await _loadAlertasConfigurados();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -207,8 +209,7 @@ class _ConfigurarAlertasScreenState extends State<ConfigurarAlertasScreen> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (alertaAtivo)
-              Icon(Icons.check_circle, color: Colors.green[600]),
+            if (alertaAtivo) Icon(Icons.check_circle, color: Colors.green[600]),
             const SizedBox(width: 8),
             IconButton(
               icon: const Icon(Icons.settings),
@@ -224,13 +225,12 @@ class _ConfigurarAlertasScreenState extends State<ConfigurarAlertasScreen> {
 }
 
 class _AlertConfigDialog extends StatefulWidget {
-  final String vacaNome;
-  final Map<String, dynamic>? alertaAtual;
-
   const _AlertConfigDialog({
     required this.vacaNome,
     this.alertaAtual,
   });
+  final String vacaNome;
+  final Map<String, dynamic>? alertaAtual;
 
   @override
   State<_AlertConfigDialog> createState() => _AlertConfigDialogState();
@@ -284,7 +284,8 @@ class _AlertConfigDialogState extends State<_AlertConfigDialog> {
               max: 20.0,
               divisions: 190,
               label: '${_limite.toStringAsFixed(1)}L',
-              onChanged: _ativo ? (value) => setState(() => _limite = value) : null,
+              onChanged:
+                  _ativo ? (value) => setState(() => _limite = value) : null,
             ),
             Text(
               'Atual: ${_limite.toStringAsFixed(1)}L',
@@ -320,8 +321,8 @@ class _AlertConfigDialogState extends State<_AlertConfigDialog> {
           onPressed: () => Navigator.pop(context, {
             'ativo': _ativo,
             'limite': _limite,
-            'mensagem': _mensagemController.text.trim().isEmpty 
-                ? null 
+            'mensagem': _mensagemController.text.trim().isEmpty
+                ? null
                 : _mensagemController.text.trim(),
           }),
           child: const Text('Salvar'),

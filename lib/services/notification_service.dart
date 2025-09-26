@@ -5,17 +5,17 @@ import 'package:permission_handler/permission_handler.dart';
 import '../utils/app_logger.dart';
 
 class NotificationService {
-  static final FlutterLocalNotificationsPlugin _notifications = 
+  static final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
-  
+
   static bool _initialized = false;
 
   static Future<void> initialize() async {
     if (_initialized) return;
-    
+
     // Inicializar timezone
     tz.initializeTimeZones();
-    
+
     // Configurações para Android
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -184,11 +184,11 @@ class NotificationService {
     final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
     tz.TZDateTime scheduledDate =
         tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
-    
+
     if (scheduledDate.isBefore(now)) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
-    
+
     return scheduledDate;
   }
 
@@ -200,8 +200,9 @@ class NotificationService {
     await _notifications.cancelAll();
   }
 
-  static Future<List<PendingNotificationRequest>> getPendingNotifications() async {
-    return await _notifications.pendingNotificationRequests();
+  static Future<List<PendingNotificationRequest>>
+      getPendingNotifications() async {
+    return _notifications.pendingNotificationRequests();
   }
 
   // IDs específicos para diferentes tipos de notificações

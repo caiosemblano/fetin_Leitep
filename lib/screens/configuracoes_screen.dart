@@ -179,7 +179,8 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
 
           ListTile(
             title: const Text('Limpeza Manual (Avançado)'),
-            subtitle: const Text('Remoção manual de órfãos - raramente necessário'),
+            subtitle:
+                const Text('Remoção manual de órfãos - raramente necessário'),
             trailing: const Icon(Icons.cleaning_services, color: Colors.orange),
             onTap: _limparOrfaos,
           ),
@@ -590,7 +591,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
             onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Cancelar'),
           ),
-            ElevatedButton(
+          ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
             child: const Text('Executar Limpeza'),
@@ -682,7 +683,7 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
             content: Text(
               result.totalOrphansDeleted > 0
                   ? '⚠️ Encontrados ${result.productionRecordsDeleted} registros órfãos\n\n'
-                    'Use "Limpeza Manual" para removê-los.'
+                      'Use "Limpeza Manual" para removê-los.'
                   : '✅ Nenhum dado órfão encontrado!\n\nSeus dados estão organizados.',
             ),
             actions: [

@@ -41,16 +41,16 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-  apiKey: 'AIzaSyDuGlHVNBLy0_5nja5GA5bTtfXQwjegEmo',
-  appId: '1:121736151982:web:b1d3d20961a1cacf66fe3f',
-  messagingSenderId: '121736151982',
-  projectId: 'fetin-eq103',
-  authDomain: 'fetin-eq103.firebaseapp.com',
-  storageBucket: 'fetin-eq103.firebasestorage.app',
-  measurementId: 'G-81S11TTLK0',
-  databaseURL: 'https://fetin-eq103-default-rtdb.firebaseio.com', // ✅ adicionado
-);
-
+    apiKey: 'AIzaSyDuGlHVNBLy0_5nja5GA5bTtfXQwjegEmo',
+    appId: '1:121736151982:web:b1d3d20961a1cacf66fe3f',
+    messagingSenderId: '121736151982',
+    projectId: 'fetin-eq103',
+    authDomain: 'fetin-eq103.firebaseapp.com',
+    storageBucket: 'fetin-eq103.firebasestorage.app',
+    measurementId: 'G-81S11TTLK0',
+    databaseURL:
+        'https://fetin-eq103-default-rtdb.firebaseio.com', // ✅ adicionado
+  );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBKoxFoWDkXuY__KGrI3hQoFlzHnnPNQbY',
